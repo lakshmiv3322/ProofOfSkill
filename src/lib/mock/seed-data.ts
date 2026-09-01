@@ -173,6 +173,18 @@ export const seedTrades: Trade[] = [
     created_at: '2025-04-01T08:00:00.000Z',
     updated_at: now,
   },
+  // ── CPR — MVP Skill ───────────────────────────────────────
+  {
+    id: 'trade-cpr',
+    institute_id: 'inst-001',
+    name: 'CPR / First-Aid Chest Compression',
+    description:
+      'Demonstrate proper CPR chest compression technique: hand placement, compression depth (5–6 cm), rate (100–120 BPM), full recoil, and rescuer posture.',
+    category: 'Emergency Medicine',
+    is_active: true,
+    created_at: '2026-01-10T08:00:00.000Z',
+    updated_at: now,
+  },
 ];
 
 // ── Rubrics ──────────────────────────────────────────────────
@@ -230,6 +242,74 @@ export const seedRubrics: Rubric[] = [
     created_at: '2025-04-01T08:00:00.000Z',
     updated_at: now,
   },
+
+  // ── CPR Rubric (MVP) ──────────────────────────────────────
+  {
+    id: 'rubric-002',
+    institute_id: 'inst-001',
+    trade_id: 'trade-cpr',
+    name: 'CPR Chest Compressions v1',
+    version: 1,
+    is_published: true,
+    pass_threshold: 70,
+    config: {
+      criteria: [
+        {
+          id: 'cpr-rate',
+          label: 'Compression Rate',
+          description: 'Target 100–120 compressions per minute (BPM). Optimal cadence is 110 BPM.',
+          weight: 40,
+          indicators: [
+            'Rate sustained at 100–120 BPM for entire cycle',
+            'No significant acceleration or deceleration across compressions',
+          ],
+        },
+        {
+          id: 'cpr-depth',
+          label: 'Compression Depth',
+          description: 'Each compression must depress the sternum 5–6 cm (2–2.4 inches).',
+          weight: 30,
+          indicators: [
+            'Mean depth ≥ 5.0 cm across all compressions',
+            'No compression shallower than 4.0 cm',
+          ],
+        },
+        {
+          id: 'cpr-recoil',
+          label: 'Full Chest Recoil',
+          description: 'Hands must fully release pressure between compressions to allow cardiac refill.',
+          weight: 20,
+          indicators: [
+            'Chest returns to resting position after each compression',
+            'Rescuer does not lean on chest between compressions',
+          ],
+        },
+        {
+          id: 'cpr-posture',
+          label: 'Rescuer Posture',
+          description: 'Arms straight, shoulders directly over hands, core engaged.',
+          weight: 10,
+          indicators: [
+            'Elbows locked throughout compression cycle',
+            'Shoulders aligned vertically above sternum contact point',
+          ],
+        },
+      ],
+      scoring_scale: {
+        min: 0,
+        max: 100,
+        bands: [
+          { label: 'Excellent', min: 90, max: 100, color: '#10b981' },
+          { label: 'Satisfactory', min: 70, max: 89, color: '#3b82f6' },
+          { label: 'Needs Improvement', min: 50, max: 69, color: '#f59e0b' },
+          { label: 'Unsatisfactory', min: 0, max: 49, color: '#ef4444' },
+        ],
+      },
+      total_weight: 100,
+    },
+    created_at: '2026-01-15T08:00:00.000Z',
+    updated_at: now,
+  },
 ];
 
 // ── Reference Clips ──────────────────────────────────────────
@@ -247,6 +327,21 @@ export const seedReferenceClips: ReferenceClip[] = [
     duration_seconds: 180,
     tags: ['expert', 'horizontal', 'fillet'],
     created_at: '2025-04-10T08:00:00.000Z',
+    updated_at: now,
+  },
+  {
+    id: 'ref-002',
+    institute_id: 'inst-001',
+    trade_id: 'trade-cpr',
+    rubric_id: 'rubric-002',
+    title: 'Expert CPR Chest Compressions — AHA Standard',
+    description:
+      'AHA-certified instructor demonstrates 30 compressions at 110 BPM, 5.5 cm depth, with full recoil and locked-arm posture. This clip is the DTW reference for all CPR submissions.',
+    video_url: 'https://example.com/clips/expert-cpr.mp4',
+    thumbnail_url: 'https://images.pexels.com/photos/4386466/pexels-photo-4386466.jpeg',
+    duration_seconds: 62,
+    tags: ['expert', 'cpr', 'aha-standard', 'reference'],
+    created_at: '2026-01-20T08:00:00.000Z',
     updated_at: now,
   },
 ];
@@ -430,6 +525,22 @@ export const seedCertificates: Certificate[] = [
     created_at: '2026-08-30T10:10:00.000Z',
     updated_at: now,
   },
+  {
+    id: 'cert-002',
+    institute_id: 'inst-001',
+    submission_id: 'sub-003',
+    trainee_id: 'user-001',
+    trade_id: 'trade-cpr',
+    verification_code: 'POS-CPR-2026-042AH',
+    status: 'active',
+    issued_at: '2026-09-01T09:00:00.000Z',
+    expires_at: '2028-09-01T09:00:00.000Z',
+    issued_by: 'user-002',
+    overall_score: 91.0,
+    pdf_url: null,
+    created_at: '2026-09-01T09:00:00.000Z',
+    updated_at: now,
+  },
 ];
 
 // ── Appeals ──────────────────────────────────────────────────
@@ -459,25 +570,100 @@ export const seedAuditLog: AuditLog[] = [
   {
     id: 'audit-001',
     institute_id: 'inst-001',
-    actor_id: 'user-002',
-    actor_role: 'assessor',
-    action: 'submission.scored',
+    actor_id: 'user-001',
+    actor_role: 'trainee',
+    action: 'submission.submitted',
     entity_type: 'submission',
     entity_id: 'sub-001',
-    metadata: { overall_score: 83.5 },
-    ip_address: null,
-    created_at: '2026-08-30T10:08:00.000Z',
+    metadata: {
+      trade: 'SMAW Shielded Metal Arc Welding',
+      state_before: { status: 'in_progress', video_file: 'pending_upload.mp4' },
+      state_after: { status: 'submitted', video_url: 'https://example.com/submissions/sub-001.mp4', duration: 165 },
+    },
+    ip_address: '192.168.1.45',
+    created_at: '2026-08-28T14:00:00.000Z',
   },
   {
     id: 'audit-002',
     institute_id: 'inst-001',
     actor_id: 'user-002',
     actor_role: 'assessor',
+    action: 'submission.scored',
+    entity_type: 'submission',
+    entity_id: 'sub-001',
+    metadata: {
+      overall_score: 83.5,
+      state_before: { status: 'under_review', score: null },
+      state_after: { status: 'scored', overall_score: 83.5, confidence: 0.92 },
+    },
+    ip_address: '10.0.4.12',
+    created_at: '2026-08-30T10:08:00.000Z',
+  },
+  {
+    id: 'audit-003',
+    institute_id: 'inst-001',
+    actor_id: 'user-002',
+    actor_role: 'assessor',
+    action: 'score.override',
+    entity_type: 'score',
+    entity_id: 'score-bead-placement',
+    metadata: {
+      criterion_id: 'bead-placement',
+      rationale: 'Student demonstrated exceptional toe fusion on the stop-restart section that the camera angle initially occluded. Overriding AI score from 75 to 90.',
+      state_before: { criterion: 'Bead Placement', score: 75, source: 'ai' },
+      state_after: { criterion: 'Bead Placement', score: 90, source: 'human', override_by: 'Mike Rodriguez' },
+    },
+    ip_address: '10.0.4.12',
+    created_at: '2026-08-30T10:09:00.000Z',
+  },
+  {
+    id: 'audit-004',
+    institute_id: 'inst-001',
+    actor_id: 'user-002',
+    actor_role: 'assessor',
     action: 'certificate.issued',
     entity_type: 'certificate',
     entity_id: 'cert-001',
-    metadata: { verification_code: 'POS-SMAW-2026-001SC' },
-    ip_address: null,
+    metadata: {
+      verification_code: 'POS-SMAW-2026-001SC',
+      overall_score: 83.5,
+      state_before: { status: 'scored', certificate_id: null },
+      state_after: { status: 'certified', certificate_id: 'cert-001', verification_code: 'POS-SMAW-2026-001SC' },
+    },
+    ip_address: '10.0.4.12',
     created_at: '2026-08-30T10:10:00.000Z',
+  },
+  {
+    id: 'audit-005',
+    institute_id: 'inst-001',
+    actor_id: 'user-003',
+    actor_role: 'institute_admin',
+    action: 'rubric.config_updated',
+    entity_type: 'rubric',
+    entity_id: 'rubric-002',
+    metadata: {
+      rubric_name: 'CPR Chest Compressions v1',
+      state_before: { version: 1, pass_threshold: 65, rate_weight: 35 },
+      state_after: { version: 1, pass_threshold: 70, rate_weight: 40, updated_by: 'Jennifer Park' },
+    },
+    ip_address: '172.16.0.8',
+    created_at: '2026-09-01T08:30:00.000Z',
+  },
+  {
+    id: 'audit-006',
+    institute_id: 'inst-001',
+    actor_id: 'user-002',
+    actor_role: 'assessor',
+    action: 'certificate.issued',
+    entity_type: 'certificate',
+    entity_id: 'cert-002',
+    metadata: {
+      verification_code: 'POS-CPR-2026-042AH',
+      overall_score: 91.0,
+      state_before: { status: 'under_review', certificate_id: null },
+      state_after: { status: 'certified', certificate_id: 'cert-002', verification_code: 'POS-CPR-2026-042AH' },
+    },
+    ip_address: '10.0.4.12',
+    created_at: '2026-09-01T09:00:00.000Z',
   },
 ];

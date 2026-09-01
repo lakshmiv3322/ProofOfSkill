@@ -89,7 +89,11 @@ function scoreBg(score: number): string {
   return 'bg-destructive';
 }
 
-export function DemoReport() {
+interface DemoReportProps {
+  onVerifyClick?: (code: string) => void;
+}
+
+export function DemoReport({ onVerifyClick }: DemoReportProps) {
   const [activeCriterion, setActiveCriterion] = useState<string | null>(null);
 
   const weightedScore = rubricCriteria.reduce(
@@ -289,8 +293,17 @@ export function DemoReport() {
                   </div>
 
                   {/* Certificate banner */}
-                  <div className="mt-6 flex items-center gap-4 rounded-xl border border-green-500/20 bg-green-500/5 p-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-500/10">
+                  <div
+                    onClick={() => {
+                      if (onVerifyClick) {
+                        onVerifyClick('POS-SMAW-2026-001SC');
+                      } else {
+                        window.open('/verify/POS-SMAW-2026-001SC', '_blank');
+                      }
+                    }}
+                    className="mt-6 flex items-center gap-4 rounded-xl border border-green-500/30 bg-green-500/5 p-4 cursor-pointer hover:bg-green-500/10 transition-colors shadow-sm"
+                  >
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-500/10 shrink-0">
                       <Award className="h-6 w-6 text-green-600" />
                     </div>
                     <div className="flex-1">
@@ -300,11 +313,14 @@ export function DemoReport() {
                           Active
                         </Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground mt-0.5">
                         Verification code: <span className="font-mono font-semibold text-foreground">POS-SMAW-2026-001SC</span> &middot; Valid until Aug 30, 2028
                       </p>
+                      <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
+                        Click to view public verifiable credential & QR code →
+                      </p>
                     </div>
-                    <ShieldCheck className="h-5 w-5 text-green-600" />
+                    <ShieldCheck className="h-5 w-5 text-green-600 shrink-0" />
                   </div>
                 </div>
               </div>

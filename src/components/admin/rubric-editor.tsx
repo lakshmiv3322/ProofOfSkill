@@ -88,7 +88,40 @@ export function RubricEditor() {
     if (parseError || !selectedRubric) return;
     try {
       const config = JSON.parse(jsonText) as Rubric['config'];
+      const previousConfig = selectedRubric.config;
+
       db.from('rubrics').update(selectedRubricId, { config });
+
+      // Log immutable enterprise audit event
+      db.logAudit({
+        institute_id: selectedRubric.institute_id,
+        actor_id: 'user-003',
+        actor_role: 'institute_admin',
+        action: 'rubric.config_updated',
+        entity_type: 'rubric',
+        entity_id: selectedRubricId,
+        metadata: {
+          rubric_name: selectedRubric.name,
+          version: selectedRubric.version,
+          state_before: {
+            rubric_name: selectedRubric.name,
+            version: selectedRubric.version,
+            pass_threshold: selectedRubric.pass_threshold,
+            criteria_count: previousConfig.criteria?.length ?? 0,
+            criteria: previousConfig.criteria,
+          },
+          state_after: {
+            rubric_name: selectedRubric.name,
+            version: selectedRubric.version,
+            pass_threshold: selectedRubric.pass_threshold,
+            criteria_count: config.criteria?.length ?? 0,
+            criteria: config.criteria,
+            updated_at: new Date().toISOString(),
+          },
+        },
+        ip_address: '172.16.0.8',
+      });
+
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch {

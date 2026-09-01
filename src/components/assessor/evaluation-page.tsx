@@ -6,6 +6,7 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { OverrideForm } from './override-form';
+import { mockClient } from '@/lib/mock/client';
 import {
   Brain,
   Calendar,
@@ -283,17 +284,74 @@ export function EvaluationPage({ onBack }: EvaluationPageProps) {
       </div>
 
       {/* Action bar */}
-      <div className="mt-6 flex flex-wrap gap-3 border-t border-border/60 pt-6">
+      <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-border/60 pt-6">
         <Button
           variant="outline"
           onClick={() => setShowOverride(true)}
         >
           Override AI Score
         </Button>
-        <Button className="ml-auto">
+        <Button
+          className="ml-auto bg-emerald-600 hover:bg-emerald-500 text-white"
+          onClick={() => {
+            const verificationCode = `POS-SMAW-2026-0${Math.floor(Math.random() * 899 + 100)}MW`;
+            mockClient.logAudit({
+              institute_id: 'inst-001',
+              actor_id: 'user-002',
+              actor_role: 'assessor',
+              action: 'certificate.issued',
+              entity_type: 'certificate',
+              entity_id: `cert-${Date.now()}`,
+              metadata: {
+                student_name: 'Marcus Webb',
+                trade: 'SMAW Shielded Metal Arc Welding',
+                verification_code: verificationCode,
+                overall_score: effectiveScore,
+                state_before: {
+                  submission_status: 'under_review',
+                  certificate_id: null,
+                  verification_code: null,
+                },
+                state_after: {
+                  submission_status: 'certified',
+                  certificate_id: `cert-${Date.now()}`,
+                  verification_code: verificationCode,
+                  overall_score: effectiveScore,
+                  issued_at: new Date().toISOString(),
+                },
+              },
+              ip_address: '10.0.4.12',
+            });
+            alert(`✓ Certificate Issued Successfully!\nVerification Code: ${verificationCode}\nScore: ${effectiveScore.toFixed(1)}%\n\nAudit log record timestamped.`);
+            onBack();
+          }}
+        >
           Approve & Issue Certificate
         </Button>
-        <Button variant="outline" className="text-destructive hover:text-destructive">
+        <Button
+          variant="outline"
+          className="text-destructive hover:text-destructive"
+          onClick={() => {
+            mockClient.logAudit({
+              institute_id: 'inst-001',
+              actor_id: 'user-002',
+              actor_role: 'assessor',
+              action: 'submission.failed',
+              entity_type: 'submission',
+              entity_id: 'sub-010',
+              metadata: {
+                student_name: 'Marcus Webb',
+                trade: 'SMAW Shielded Metal Arc Welding',
+                overall_score: effectiveScore,
+                state_before: { submission_status: 'under_review' },
+                state_after: { submission_status: 'failed', rejection_reason: 'Assessor determined criteria not fully met.' },
+              },
+              ip_address: '10.0.4.12',
+            });
+            alert('Submission marked as failed. Audit log updated.');
+            onBack();
+          }}
+        >
           Flag as Failed
         </Button>
       </div>

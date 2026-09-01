@@ -28,6 +28,7 @@ import {
   Settings2,
   LogOut,
   ChevronRight,
+  History,
 } from 'lucide-react';
 import type { UserRole } from '@/types/database';
 
@@ -55,10 +56,12 @@ const NAV_BY_ROLE: Record<UserRole, NavItem[]> = {
     { id: 'metrics', label: 'Cohort Metrics', icon: BarChart3 },
     { id: 'billing', label: 'Billing & Usage', icon: CreditCard },
     { id: 'rubric', label: 'Rubric Config', icon: Settings2 },
+    { id: 'audit', label: 'Audit & Compliance', icon: History },
   ],
   platform_admin: [
     { id: 'metrics', label: 'Platform Overview', icon: BarChart3 },
     { id: 'users', label: 'All Users', icon: Users },
+    { id: 'audit', label: 'Global Audit Trail', icon: History },
   ],
 };
 

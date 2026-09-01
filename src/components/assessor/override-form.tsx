@@ -71,7 +71,7 @@ export function OverrideForm({ criteria, onSave, onCancel }: OverrideFormProps) 
   const selectedCriterion = criteria.find((c) => c.id === selectedId);
 
   const onSubmit = async (data: OverrideFormValues) => {
-    // Write to audit log
+    // Write to audit log with State Before vs State After
     mockClient.logAudit({
       institute_id: 'inst-001',
       actor_id: 'user-002',
@@ -85,8 +85,21 @@ export function OverrideForm({ criteria, onSave, onCancel }: OverrideFormProps) 
         ai_score: selectedCriterion?.aiScore ?? null,
         new_score: data.newScore,
         rationale: data.rationale,
+        state_before: {
+          criterion: selectedCriterion?.label ?? data.criterionId,
+          score: selectedCriterion?.aiScore ?? null,
+          source: 'ai',
+          weight: selectedCriterion?.weight ?? null,
+        },
+        state_after: {
+          criterion: selectedCriterion?.label ?? data.criterionId,
+          score: data.newScore,
+          source: 'human',
+          override_rationale: data.rationale,
+          assessor_id: 'user-002',
+        },
       },
-      ip_address: null,
+      ip_address: '10.0.4.12',
     });
 
     setSaved(true);

@@ -1,81 +1,160 @@
 // ─────────────────────────────────────────────────────────────
 // Deterministic Rubric Engine
-// Pure math calculation. LLMs are NOT allowed to decide the score.
+// ─────────────────────────────────────────────────────────────
+// ARCHITECTURAL RULE: The numeric score is calculated SOLELY by
+// mathematical rubric logic applied to DTW output deltas.
+// LLMs are NEVER allowed to set or modify the score.
 // ─────────────────────────────────────────────────────────────
 import { mockCalculateDTW } from './dtw';
 import type { RubricConfig } from '@/types/database';
 
+// ── Public types ──────────────────────────────────────────────
+
+export interface CriterionDelta {
+  criterionId: string;
+  label: string;
+  /** Criterion score 0–100 from the rubric math. */
+  score: number;
+  /** Weight band (0–100) as configured in the rubric. */
+  weight: number;
+  /** Human-readable measurement delta for the LLM narrative layer. */
+  delta: string;
+}
+
 export interface RubricResult {
   overallScore: number;
   criteriaScores: Record<string, number>;
-  metrics: Record<string, number>;
+  /** Structured per-criterion deltas to pass to the LLM narrative layer. */
+  deltas: CriterionDelta[];
+  metrics: {
+    actualBpm: number;
+    actualDepthCm: number;
+    recoilVariancePct: number;
+    postureVarianceScore: number;
+  };
 }
+
+// ── Main engine ───────────────────────────────────────────────
 
 export function evaluateSubmission(
   submissionId: string,
   rubricConfig: RubricConfig
 ): RubricResult {
-  // 1. Get raw mathematical variance from DTW ML pipeline
+  // 1. Obtain raw mathematical variance from the DTW ML pipeline.
+  //    Each call is seeded from Date.now() so every demo run differs.
   const dtwResult = mockCalculateDTW(submissionId);
-  
+
+  // 2. Resolve concrete metric values from the DTW deltas.
+  //    Reference values: 110 BPM rate, 5.5 cm depth.
+  const actualBpm         = +(110 + dtwResult.rateVarianceBpm).toFixed(1);
+  const actualDepthCm     = +(5.5 + dtwResult.depthVarianceCm).toFixed(2);
+  const recoilVariancePct = +dtwResult.releaseVariancePct.toFixed(1);
+  const postureVarianceScore = +dtwResult.postureVarianceScore.toFixed(1);
+
   const criteriaScores: Record<string, number> = {};
+  const deltas: CriterionDelta[] = [];
   let weightedTotal = 0;
 
-  // 2. Map DTW outputs to rubric criteria based on strict rules
+  // 3. Map DTW outputs to rubric criteria using strict deterministic rules.
   rubricConfig.criteria.forEach((criterion) => {
     let score = 0;
+    let delta = '';
 
     switch (criterion.id) {
+      // ── Rate ────────────────────────────────────────────────
       case 'cpr-rate': {
-        // Target: 100-120 BPM. Let's say reference is 110.
-        const actualBpm = 110 + dtwResult.rateVarianceBpm; // e.g., 102
-        if (actualBpm >= 100 && actualBpm <= 120) score = 100;
-        else if (actualBpm >= 90 && actualBpm < 100) score = 75;
-        else if (actualBpm > 120 && actualBpm <= 130) score = 75;
-        else score = 40;
+        if (actualBpm >= 100 && actualBpm <= 120) {
+          score = 100;
+          delta = `BPM: ${actualBpm} — Optimal (100–120 BPM)`;
+        } else if (actualBpm >= 90 && actualBpm < 100) {
+          score = 75;
+          delta = `BPM: ${actualBpm} — Too Slow (target 100–120 BPM)`;
+        } else if (actualBpm > 120 && actualBpm <= 130) {
+          score = 75;
+          delta = `BPM: ${actualBpm} — Too Fast (target 100–120 BPM)`;
+        } else if (actualBpm < 90) {
+          score = 40;
+          delta = `BPM: ${actualBpm} — Significantly Too Slow (target 100–120 BPM)`;
+        } else {
+          score = 40;
+          delta = `BPM: ${actualBpm} — Significantly Too Fast (target 100–120 BPM)`;
+        }
         break;
       }
+
+      // ── Depth ────────────────────────────────────────────────
       case 'cpr-depth': {
-        // Target: 5cm - 6cm. Let's say reference is 5.5cm.
-        const actualDepth = 5.5 + dtwResult.depthVarianceCm; // e.g., 5.0
-        if (actualDepth >= 5.0 && actualDepth <= 6.0) score = 100;
-        else if (actualDepth >= 4.0 && actualDepth < 5.0) score = 60;
-        else score = 0;
+        if (actualDepthCm >= 5.0 && actualDepthCm <= 6.0) {
+          score = 100;
+          delta = `Depth: ${actualDepthCm} cm — Optimal (5–6 cm)`;
+        } else if (actualDepthCm >= 4.0 && actualDepthCm < 5.0) {
+          score = 60;
+          delta = `Depth: ${actualDepthCm} cm — Too Shallow (target 5–6 cm)`;
+        } else if (actualDepthCm > 6.0) {
+          score = 70;
+          delta = `Depth: ${actualDepthCm} cm — Too Deep (risk of injury above 6 cm)`;
+        } else {
+          score = 0;
+          delta = `Depth: ${actualDepthCm} cm — Critically Shallow (< 4 cm, ineffective)`;
+        }
         break;
       }
+
+      // ── Recoil ───────────────────────────────────────────────
       case 'cpr-recoil': {
-        // Target: < 10% incomplete recoil
-        if (dtwResult.releaseVariancePct <= 5) score = 100;
-        else if (dtwResult.releaseVariancePct <= 15) score = 80;
-        else score = 50;
+        if (recoilVariancePct <= 5) {
+          score = 100;
+          delta = `Recoil: ${recoilVariancePct}% incomplete — Excellent full release`;
+        } else if (recoilVariancePct <= 15) {
+          score = 80;
+          delta = `Recoil: ${recoilVariancePct}% incomplete — Minor leaning detected`;
+        } else if (recoilVariancePct <= 25) {
+          score = 50;
+          delta = `Recoil: ${recoilVariancePct}% incomplete — Leaning significantly reduces effectiveness`;
+        } else {
+          score = 20;
+          delta = `Recoil: ${recoilVariancePct}% incomplete — Critically poor; cardiac refill blocked`;
+        }
         break;
       }
+
+      // ── Posture ──────────────────────────────────────────────
       case 'cpr-posture': {
-        // Posture DTW distance (0 is perfect, < 20 is great)
-        if (dtwResult.postureVarianceScore < 15) score = 100;
-        else if (dtwResult.postureVarianceScore < 30) score = 80;
-        else score = 60;
+        if (postureVarianceScore < 15) {
+          score = 100;
+          delta = `Posture: DTW distance ${postureVarianceScore} — Excellent arm alignment`;
+        } else if (postureVarianceScore < 25) {
+          score = 80;
+          delta = `Posture: DTW distance ${postureVarianceScore} — Minor elbow bend detected`;
+        } else if (postureVarianceScore < 35) {
+          score = 60;
+          delta = `Posture: DTW distance ${postureVarianceScore} — Elbows bent; reduces force transfer`;
+        } else {
+          score = 40;
+          delta = `Posture: DTW distance ${postureVarianceScore} — Poor; shoulders not over hands`;
+        }
         break;
       }
+
       default:
-        // Fallback for demo: assume a generic good score if criteria don't match exactly
-        score = 85;
+        // Generic pass-through for any unrecognised criterion ids.
+        score = 80;
+        delta = `${criterion.label}: assessed at ${score}/100`;
     }
 
     criteriaScores[criterion.id] = score;
+    deltas.push({ criterionId: criterion.id, label: criterion.label, score, weight: criterion.weight, delta });
     weightedTotal += (score * criterion.weight) / 100;
   });
 
-  // Scale total against total_weight in config if needed (assuming 100 for now)
+  // 4. Compute final score: weighted sum normalised over total_weight.
+  //    The LLM CANNOT modify this value.
   const overallScore = Math.round((weightedTotal / rubricConfig.total_weight) * 100);
 
   return {
     overallScore,
     criteriaScores,
-    metrics: {
-      actualBpm: 110 + dtwResult.rateVarianceBpm,
-      actualDepthCm: 5.5 + dtwResult.depthVarianceCm,
-      recoilVariancePct: dtwResult.releaseVariancePct,
-    }
+    deltas,
+    metrics: { actualBpm, actualDepthCm, recoilVariancePct, postureVarianceScore },
   };
 }

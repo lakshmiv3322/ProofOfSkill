@@ -7,6 +7,7 @@ import { useAuth } from '@/context/auth-context';
 
 interface NavbarProps {
   onAuthClick: (tab: 'signin' | 'signup') => void;
+  onVerifyClick?: () => void;
 }
 
 const navLinks = [
@@ -16,7 +17,7 @@ const navLinks = [
   { label: 'Pricing', href: '#pricing' },
 ];
 
-export function Navbar({ onAuthClick }: NavbarProps) {
+export function Navbar({ onAuthClick, onVerifyClick }: NavbarProps) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const { isAuthenticated, user, signOut } = useAuth();
@@ -60,6 +61,17 @@ export function Navbar({ onAuthClick }: NavbarProps) {
 
         {/* Desktop actions */}
         <div className="hidden items-center gap-3 md:flex">
+          {onVerifyClick && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onVerifyClick}
+              className="gap-1.5 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Verify Certificate
+            </Button>
+          )}
           {isAuthenticated ? (
             <>
               <Badge variant="secondary" className="gap-1.5">
@@ -106,13 +118,26 @@ export function Navbar({ onAuthClick }: NavbarProps) {
                 {link.label}
               </a>
             ))}
-            <div className="flex gap-2 pt-2">
+            <div className="flex flex-col gap-2 pt-2">
+              {onVerifyClick && (
+                <Button
+                  variant="outline"
+                  className="w-full justify-center gap-1.5 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+                  onClick={() => {
+                    setMobileOpen(false);
+                    onVerifyClick();
+                  }}
+                >
+                  <ShieldCheck className="h-4 w-4" />
+                  Verify Certificate
+                </Button>
+              )}
               {isAuthenticated ? (
                 <Button variant="outline" className="flex-1" onClick={signOut}>
                   Sign Out
                 </Button>
               ) : (
-                <>
+                <div className="flex gap-2">
                   <Button
                     variant="outline"
                     className="flex-1"
@@ -132,7 +157,7 @@ export function Navbar({ onAuthClick }: NavbarProps) {
                   >
                     Get Started
                   </Button>
-                </>
+                </div>
               )}
             </div>
           </div>

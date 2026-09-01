@@ -24,6 +24,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { QRCodeSVG } from '@/components/common/qr-code';
 
 // ─────────────────────────────────────────────────────────────
 // MyProgress — Trainee personal timeline + analytics
@@ -43,6 +44,15 @@ interface SubmissionRecord {
 
 const SUBMISSIONS: SubmissionRecord[] = [
   {
+    id: 'sub-003',
+    trade: 'CPR / First-Aid Chest Compression',
+    submittedAt: '2026-09-01',
+    reviewedAt: '2026-09-01',
+    status: 'passed',
+    score: 91.0,
+    certCode: 'POS-CPR-2026-042AH',
+  },
+  {
     id: 'sub-001',
     trade: 'SMAW Horizontal Fillet Weld',
     submittedAt: '2026-08-28',
@@ -58,15 +68,6 @@ const SUBMISSIONS: SubmissionRecord[] = [
     reviewedAt: '2026-07-16',
     status: 'failed',
     score: 61.0,
-    certCode: null,
-  },
-  {
-    id: 'sub-003',
-    trade: 'CPR / First-Aid Chest Compression',
-    submittedAt: '2026-09-01',
-    reviewedAt: null,
-    status: 'in_review',
-    score: null,
     certCode: null,
   },
   {
@@ -126,7 +127,11 @@ const STATUS_CONFIG: Record<
   },
 };
 
-export function MyProgress() {
+interface MyProgressProps {
+  onViewCertificate?: (certCode: string) => void;
+}
+
+export function MyProgress({ onViewCertificate }: MyProgressProps) {
   const stats = useMemo(() => {
     const scored = SUBMISSIONS.filter((s) => s.score !== null);
     const passed = SUBMISSIONS.filter((s) => s.status === 'passed').length;
@@ -223,7 +228,7 @@ export function MyProgress() {
           </ResponsiveContainer>
           {/* Pass threshold line label */}
           <p className="mt-1 text-center text-[10px] text-muted-foreground">
-            Pass threshold: 70% — your last score: <span className="font-semibold text-emerald-500">83.5%</span>
+            Pass threshold: 70% — your last score: <span className="font-semibold text-emerald-500">91.0%</span>
           </p>
         </CardContent>
       </Card>
@@ -285,26 +290,68 @@ export function MyProgress() {
       <Separator className="mb-6" />
 
       {/* Certificates shelf */}
-      <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-        Earned Certificates
-      </h2>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {certs.map((sub) => (
-          <div
-            key={sub.id}
-            className="flex items-center gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4"
-          >
-            <ShieldCheck className="h-8 w-8 shrink-0 text-amber-500" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">{sub.trade}</p>
-              <p className="text-xs text-muted-foreground">Score: {sub.score}%</p>
-              <p className="mt-0.5 font-mono text-[10px] text-amber-600">{sub.certCode}</p>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          Earned Certificates & Digital Credentials ({certs.length})
+        </h2>
+        <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/30 text-[10px]">
+          Publicly Verifiable
+        </Badge>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        {certs.map((sub) => {
+          const verifyUrl = typeof window !== 'undefined'
+            ? `${window.location.origin}/verify/${sub.certCode}`
+            : `https://proofofskill.com/verify/${sub.certCode}`;
+
+          return (
+            <div
+              key={sub.id}
+              className="flex flex-col justify-between rounded-xl border border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-slate-900/40 p-4 space-y-4 hover:border-amber-500/60 transition-all shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0">
+                    <ShieldCheck className="h-6 w-6 text-amber-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-foreground leading-snug">{sub.trade}</p>
+                    <p className="text-xs text-emerald-500 font-semibold mt-0.5">Certified Score: {sub.score}%</p>
+                  </div>
+                </div>
+
+                {/* QR Code thumbnail */}
+                <div className="p-1 bg-white rounded-md shrink-0 shadow-sm border border-amber-400">
+                  <QRCodeSVG value={verifyUrl} size={42} fgColor="#0f172a" />
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-border/40 flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-[10px] text-muted-foreground block font-mono">VERIFICATION CODE</span>
+                  <span className="font-mono font-bold text-amber-600 dark:text-amber-400">{sub.certCode}</span>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      if (onViewCertificate && sub.certCode) {
+                        onViewCertificate(sub.certCode);
+                      } else if (sub.certCode) {
+                        window.open(`/verify/${sub.certCode}`, '_blank');
+                      }
+                    }}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-medium text-xs transition-colors border border-amber-500/30"
+                  >
+                    <span>Verify & Print</span>
+                    <ExternalLink className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
             </div>
-            <button className="shrink-0 text-muted-foreground hover:text-foreground transition-colors">
-              <ExternalLink className="h-4 w-4" />
-            </button>
-          </div>
-        ))}
+          );
+        })}
         {certs.length === 0 && (
           <p className="col-span-2 text-sm text-muted-foreground">
             No certificates earned yet. Pass an assessment to receive your first certificate.

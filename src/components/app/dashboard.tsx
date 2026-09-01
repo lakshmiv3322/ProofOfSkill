@@ -17,6 +17,9 @@ import { EvaluationPage } from '@/components/assessor/evaluation-page';
 import { CohortMetrics } from '@/components/admin/cohort-metrics';
 import { BillingCounter } from '@/components/admin/billing-counter';
 import { RubricEditor } from '@/components/admin/rubric-editor';
+import { AuditLogExplorer } from '@/components/admin/audit-log-explorer';
+
+import { PublicVerifyPage } from '@/components/verify/public-verify-page';
 
 // ─────────────────────────────────────────────────────────────
 // Default view per role
@@ -37,11 +40,13 @@ function DashboardInner() {
   const { activeRole } = useApp();
   const [activeView, setActiveView] = useState(DEFAULT_VIEW[activeRole] ?? 'catalog');
   const [evaluatingId, setEvaluatingId] = useState<string | null>(null);
+  const [verifyingCertCode, setVerifyingCertCode] = useState<string | null>(null);
 
   // When the role switches, reset to the default view for that role
   const handleNavigate = (view: string) => {
     setActiveView(view);
     setEvaluatingId(null);
+    setVerifyingCertCode(null);
   };
 
   // Sync default view when role changes via the role switcher
@@ -51,6 +56,16 @@ function DashboardInner() {
       : activeView;
 
   const renderView = () => {
+    // If viewing a certificate
+    if (verifyingCertCode) {
+      return (
+        <PublicVerifyPage
+          initialCode={verifyingCertCode}
+          onBack={() => setVerifyingCertCode(null)}
+        />
+      );
+    }
+
     // ── Trainee ────────────────────────────────────────────
     if (activeRole === 'trainee') {
       if (resolvedView === 'catalog') {
@@ -77,7 +92,11 @@ function DashboardInner() {
         );
       }
       if (resolvedView === 'progress') {
-        return <MyProgress />;
+        return (
+          <MyProgress
+            onViewCertificate={(code) => setVerifyingCertCode(code)}
+          />
+        );
       }
     }
 
@@ -110,11 +129,13 @@ function DashboardInner() {
       if (resolvedView === 'metrics') return <CohortMetrics />;
       if (resolvedView === 'billing') return <BillingCounter />;
       if (resolvedView === 'rubric') return <RubricEditor />;
+      if (resolvedView === 'audit') return <AuditLogExplorer />;
     }
 
     // ── Platform Admin (reuses admin views for demo) ───────
     if (activeRole === 'platform_admin') {
       if (resolvedView === 'metrics') return <CohortMetrics />;
+      if (resolvedView === 'audit') return <AuditLogExplorer />;
     }
 
     // Fallback
