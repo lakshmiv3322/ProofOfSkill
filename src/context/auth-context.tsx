@@ -80,30 +80,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let mounted = true;
 
     // 1. Restore any existing session from localStorage
-    supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
-      if (!mounted) return;
-      setSession(existingSession);
-      if (existingSession?.user) {
-        const appUser = await fetchUser(existingSession.user.id);
-        if (mounted) setUser(appUser);
-      }
-      setIsLoading(false);
-    });
-
-    // 2. Subscribe to future auth state changes (sign-in, sign-out, token refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, newSession) => {
+    // Wrapped in try/catch so a missing Supabase config (no .env.local) doesn't crash the app.
+    supabase.auth.getSession()
+      .then(async ({ data: { session: existingSession } }) => {
         if (!mounted) return;
-        setSession(newSession);
-        if (newSession?.user) {
-          const appUser = await fetchUser(newSession.user.id);
+        setSession(existingSession);
+        if (existingSession?.user) {
+          const appUser = await fetchUser(existingSession.user.id);
           if (mounted) setUser(appUser);
-        } else {
-          setUser(null);
         }
         setIsLoading(false);
-      }
-    );
+      })
+      .catch((err) => {
+        console.warn('[auth] getSession failed (offline/demo mode):', err?.message);
+        if (mounted) setIsLoading(false);
+      });
+
+    // 2. Subscribe to future auth state changes (sign-in, sign-out, token refresh)
+    let subscription: { unsubscribe: () => void } = { unsubscribe: () => {} };
+    try {
+      const { data } = supabase.auth.onAuthStateChange(
+        async (_event, newSession) => {
+          if (!mounted) return;
+          setSession(newSession);
+          if (newSession?.user) {
+            const appUser = await fetchUser(newSession.user.id);
+            if (mounted) setUser(appUser);
+          } else {
+            setUser(null);
+          }
+          setIsLoading(false);
+        }
+      );
+      subscription = data.subscription;
+    } catch (err) {
+      console.warn('[auth] onAuthStateChange setup failed (offline/demo mode):', err);
+    }
 
     return () => {
       mounted = false;

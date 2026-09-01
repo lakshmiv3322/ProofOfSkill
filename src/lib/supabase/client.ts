@@ -109,14 +109,26 @@ export type SupabaseSchema = {
 };
 
 // ── Validate env vars at module load time ─────────────────────
+// Graceful degradation: if env vars are missing (e.g. local dev without .env.local),
+// we log a warning and create a no-op client pointing at a placeholder URL.
+// The landing page renders fully; auth/data calls will silently fail.
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+const supabaseUrl =
+  (import.meta.env.VITE_SUPABASE_URL as string | undefined) ||
+  'https://placeholder.supabase.co';
+const supabaseAnonKey =
+  (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ||
+  'placeholder-anon-key';
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    '[ProofOfSkill] Missing Supabase env vars.\n' +
-    'Copy .env.example → .env.local and fill in VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'
+const isMissingEnv =
+  supabaseUrl === 'https://placeholder.supabase.co' ||
+  supabaseAnonKey === 'placeholder-anon-key';
+
+if (isMissingEnv) {
+  console.warn(
+    '[ProofOfSkill] Supabase env vars not configured.\n' +
+    'Copy .env.example → .env.local and fill in VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.\n' +
+    'Running in demo/offline mode — auth and data features are disabled.'
   );
 }
 
@@ -124,11 +136,12 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient<SupabaseSchema>(supabaseUrl, supabaseAnonKey, {
   auth: {
-    // Persist sessions in localStorage so page refresh keeps the user logged in
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
+    persistSession: !isMissingEnv,
+    autoRefreshToken: !isMissingEnv,
+    detectSessionInUrl: !isMissingEnv,
   },
 });
+
+export const isSupabaseConfigured = !isMissingEnv;
 
 export type SupabaseClient = typeof supabase;
