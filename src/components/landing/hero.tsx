@@ -2,11 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   ShieldCheck,
-  Video,
   Activity,
   Play,
-  CheckCircle2,
-  Lock,
   Zap,
   Sliders,
 } from 'lucide-react';
@@ -204,7 +201,8 @@ export function Hero({ onAuthClick }: HeroProps) {
             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
               <button
                 onClick={() => setIsPlaying(!isPlaying)}
-                className="px-3 py-1 rounded bg-slate-900/90 border border-hairline text-slate-300 hover:text-white text-xs font-mono transition-colors flex items-center gap-1.5 backdrop-blur-sm"
+                aria-label={isPlaying ? 'Pause Kinematics Animation' : 'Resume Kinematics Animation'}
+                className="px-3 py-1 rounded bg-slate-900/90 border border-hairline text-slate-300 hover:text-white text-xs font-mono transition-colors flex items-center gap-1.5 backdrop-blur-sm focus-visible:ring-laser"
               >
                 <Play className="h-3 w-3 text-laser" />
                 <span>{isPlaying ? 'Pause Kinematics' : 'Resume Kinematics'}</span>
@@ -219,18 +217,23 @@ export function Hero({ onAuthClick }: HeroProps) {
               <span>Double-Signature Audit Protocol Active</span>
             </div>
 
-            <div className="flex items-center justify-center gap-1">
+            <div className="flex items-center justify-center gap-1" aria-label="Live Telemetry Waveform Signal">
               <span className="text-[10px] text-slate-500 mr-1">WAVE:</span>
-              {[20, 55, 90, 45, 100, 70, 30, 85, 95, 60, 75, 40, 80, 60, 95].map((h, i) => (
-                <div
-                  key={i}
-                  className="w-1 rounded-full bg-laser transition-all duration-300"
-                  style={{
-                    height: `${Math.max(4, (h * (isPlaying ? 1 : 0.3)) * 0.18)}px`,
-                    opacity: 0.3 + (i / 15) * 0.7,
-                  }}
-                />
-              ))}
+              {[20, 55, 90, 45, 100, 70, 30, 85, 95, 60, 75, 40, 80, 60, 95].map((h, i) => {
+                const bpmMod = (traineeBpm % 10) * 2;
+                const depthMod = (traineeDepth * 4);
+                const dynamicH = Math.min(100, Math.max(10, h + ((i % 3 === 0) ? bpmMod : -depthMod)));
+                return (
+                  <div
+                    key={i}
+                    className="w-1 rounded-full bg-laser transition-all duration-300"
+                    style={{
+                      height: `${Math.max(4, (dynamicH * (isPlaying ? 1 : 0.3)) * 0.18)}px`,
+                      opacity: 0.3 + (i / 15) * 0.7,
+                    }}
+                  />
+                );
+              })}
             </div>
 
             <div className="text-right text-slateText truncate">

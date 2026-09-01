@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   User,
   Layers,
+  ArrowLeft,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -93,10 +94,11 @@ function scoreBg(score: number) {
 }
 
 interface EvaluationPageProps {
+  submissionId?: string;
   onBack: () => void;
 }
 
-export function EvaluationPage({ onBack }: EvaluationPageProps) {
+export function EvaluationPage({ submissionId = 'sub-010', onBack }: EvaluationPageProps) {
   const { db, activeUser } = useApp();
   const [showOverride, setShowOverride] = useState(false);
   const [savedOverrides, setSavedOverrides] = useState<Record<string, number>>({});
@@ -117,15 +119,16 @@ export function EvaluationPage({ onBack }: EvaluationPageProps) {
     <div className="p-4 sm:p-6 lg:p-8">
       {/* Header */}
       <div className="mb-2">
-        <Button variant="ghost" size="sm" className="-ml-2" onClick={onBack}>
-          ← Back to Queue
+        <Button variant="ghost" size="sm" className="-ml-2 gap-1.5" onClick={onBack}>
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back to Queue
         </Button>
       </div>
 
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold sm:text-2xl">Evaluation: sub-010</h1>
-          <p className="text-sm text-muted-foreground">SMAW Horizontal Fillet Weld · Marcus Webb</p>
+          <h1 className="text-xl font-bold sm:text-2xl">Evaluation: {submissionId}</h1>
+          <p className="text-sm text-muted-foreground">CPR Chest Compression Assessment · Marcus Webb</p>
         </div>
         <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20">AI Ready for Review</Badge>
       </div>
@@ -297,14 +300,14 @@ export function EvaluationPage({ onBack }: EvaluationPageProps) {
           className="ml-auto bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
           onClick={async () => {
             const verificationCode = `POS-CPR-2026-${Math.floor(Math.random() * 899 + 100)}AH`;
-            const certId = `cert-${Date.now()}`;
+            const certId = `cert-${crypto.randomUUID()}`;
 
             try {
               // 1. Insert real Certificate record in Supabase
               const certRow = {
                 id: certId,
                 institute_id: activeUser.institute_id,
-                submission_id: 'sub-010',
+                submission_id: submissionId,
                 trainee_id: activeUser.id,
                 trade_id: 'trade-cpr',
                 verification_code: verificationCode,
@@ -323,7 +326,7 @@ export function EvaluationPage({ onBack }: EvaluationPageProps) {
               await (db as any)
                 .from('submissions')
                 .update({ status: 'certified', reviewed_at: new Date().toISOString() })
-                .eq('id', 'sub-010');
+                .eq('id', submissionId);
 
               // 3. Write Audit Log
               await logAudit({
@@ -334,6 +337,7 @@ export function EvaluationPage({ onBack }: EvaluationPageProps) {
                 entity_type: 'certificate',
                 entity_id: certId,
                 metadata: {
+                  submission_id: submissionId,
                   verification_code: verificationCode,
                   overall_score: effectiveScore,
                   state_before: { submission_status: 'under_review' },
@@ -341,11 +345,8 @@ export function EvaluationPage({ onBack }: EvaluationPageProps) {
                 },
                 ip_address: null,
               });
-
-              alert(`✓ Certificate Issued & Persisted Successfully!\nVerification Code: ${verificationCode}\nScore: ${effectiveScore.toFixed(1)}%\n\nPublic Verify Page link is now active.`);
             } catch (err: any) {
               console.error('[EvaluationPage] Certificate issue notice:', err);
-              alert(`Certificate minted! Verification Code: ${verificationCode}`);
             }
 
             onBack();
@@ -363,17 +364,17 @@ export function EvaluationPage({ onBack }: EvaluationPageProps) {
               actor_role: activeUser.role,
               action: 'submission.failed',
               entity_type: 'submission',
-              entity_id: 'sub-010',
+              entity_id: submissionId,
               metadata: {
+                submission_id: submissionId,
                 student_name: 'Marcus Webb',
-                trade: 'SMAW Shielded Metal Arc Welding',
+                trade: 'CPR Chest Compression Assessment',
                 overall_score: effectiveScore,
                 state_before: { submission_status: 'under_review' },
                 state_after: { submission_status: 'failed', rejection_reason: 'Assessor determined criteria not fully met.' },
               },
               ip_address: null,
             });
-            alert('Submission marked as failed. Audit log updated.');
             onBack();
           }}
         >
@@ -385,6 +386,7 @@ export function EvaluationPage({ onBack }: EvaluationPageProps) {
       {showOverride && (
         <OverrideForm
           criteria={CRITERIA}
+          submissionId={submissionId}
           onSave={handleOverrideSave}
           onCancel={() => setShowOverride(false)}
         />

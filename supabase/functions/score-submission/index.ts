@@ -36,15 +36,6 @@ interface RubricCriterion {
   indicators: string[];
 }
 
-interface RubricConfig {
-  criteria: RubricCriterion[];
-  scoring_scale: {
-    min: number;
-    max: number;
-    bands: { label: string; min: number; max: number; color: string }[];
-  };
-  total_weight: number;
-}
 
 function computeDTWMetrics(landmarks: PoseLandmark[]) {
   if (!landmarks || landmarks.length === 0) {

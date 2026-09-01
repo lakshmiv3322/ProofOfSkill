@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { AppShell } from '@/components/app/app-shell';
 import { RoleSwitcher } from '@/components/app/role-switcher';
 import { AppProvider, useApp, DEMO_MODE } from '@/context/app-context';
@@ -76,18 +76,18 @@ function DashboardInner() {
   const [evaluatingId, setEvaluatingId] = useState<string | null>(null);
   const [verifyingCertCode, setVerifyingCertCode] = useState<string | null>(null);
 
-  // When the role switches, reset to the default view for that role
+  // When activeRole changes (e.g. via Dev RoleSwitcher), reset view state
+  useEffect(() => {
+    setActiveView(DEFAULT_VIEW[activeRole] ?? 'catalog');
+    setEvaluatingId(null);
+    setVerifyingCertCode(null);
+  }, [activeRole]);
+
   const handleNavigate = (view: string) => {
     setActiveView(view);
     setEvaluatingId(null);
     setVerifyingCertCode(null);
   };
-
-  // Sync default view when role changes via the role switcher
-  const resolvedView =
-    DEFAULT_VIEW[activeRole] !== undefined && DEFAULT_VIEW[activeRole] !== activeView
-      ? DEFAULT_VIEW[activeRole]
-      : activeView;
 
   const renderView = () => {
     // If viewing a certificate
@@ -102,14 +102,14 @@ function DashboardInner() {
 
     // ── Trainee ────────────────────────────────────────────
     if (activeRole === 'trainee') {
-      if (resolvedView === 'catalog') {
+      if (activeView === 'catalog') {
         return (
           <SkillCatalog
             onStartAssessment={() => setActiveView('instructions')}
           />
         );
       }
-      if (resolvedView === 'instructions') {
+      if (activeView === 'instructions') {
         return (
           <AssessmentInstructions 
             onBack={() => setActiveView('catalog')} 
@@ -117,7 +117,7 @@ function DashboardInner() {
           />
         );
       }
-      if (resolvedView === 'capture') {
+      if (activeView === 'capture') {
         return (
           <VideoCapture 
             onBack={() => setActiveView('instructions')} 
@@ -125,7 +125,7 @@ function DashboardInner() {
           />
         );
       }
-      if (resolvedView === 'progress') {
+      if (activeView === 'progress') {
         return (
           <MyProgress
             onViewCertificate={(code) => setVerifyingCertCode(code)}
@@ -136,7 +136,7 @@ function DashboardInner() {
 
     // ── Assessor ───────────────────────────────────────────
     if (activeRole === 'assessor') {
-      if (resolvedView === 'queue' && !evaluatingId) {
+      if (activeView === 'queue' && !evaluatingId) {
         return (
           <ReviewQueue
             onReview={(id) => {
@@ -146,9 +146,10 @@ function DashboardInner() {
           />
         );
       }
-      if (resolvedView === 'evaluate' || evaluatingId) {
+      if (activeView === 'evaluate' || evaluatingId) {
         return (
           <EvaluationPage
+            submissionId={evaluatingId ?? undefined}
             onBack={() => {
               setEvaluatingId(null);
               setActiveView('queue');
@@ -160,16 +161,16 @@ function DashboardInner() {
 
     // ── Institute Admin ────────────────────────────────────
     if (activeRole === 'institute_admin') {
-      if (resolvedView === 'metrics') return <CohortMetrics />;
-      if (resolvedView === 'billing') return <BillingCounter />;
-      if (resolvedView === 'rubric') return <RubricEditor />;
-      if (resolvedView === 'audit') return <AuditLogExplorer />;
+      if (activeView === 'metrics') return <CohortMetrics />;
+      if (activeView === 'billing') return <BillingCounter />;
+      if (activeView === 'rubric') return <RubricEditor />;
+      if (activeView === 'audit') return <AuditLogExplorer />;
     }
 
     // ── Platform Admin (reuses admin views for demo) ───────
     if (activeRole === 'platform_admin') {
-      if (resolvedView === 'metrics') return <CohortMetrics />;
-      if (resolvedView === 'audit') return <AuditLogExplorer />;
+      if (activeView === 'metrics') return <CohortMetrics />;
+      if (activeView === 'audit') return <AuditLogExplorer />;
     }
 
     // Fallback
@@ -188,7 +189,7 @@ function DashboardInner() {
     <div className={DEMO_MODE ? 'pt-8 h-screen flex flex-col' : 'h-screen flex flex-col'}>
       {DEMO_MODE && <RoleSwitcher />}
       <div className="flex-1 overflow-hidden">
-        <AppShell activeView={resolvedView} onNavigate={handleNavigate}>
+        <AppShell activeView={activeView} onNavigate={handleNavigate}>
           <Suspense fallback={<ViewLoading />}>
             {renderView()}
           </Suspense>

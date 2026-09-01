@@ -27,6 +27,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = 'signin' }: AuthMod
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [institutes, setInstitutes] = useState<Institute[]>([]);
+  const [selectedInstituteId, setSelectedInstituteId] = useState<string>('');
 
   // Load active institutes for the sign-up dropdown
   useEffect(() => {
@@ -37,7 +38,11 @@ export function AuthModal({ open, onOpenChange, defaultTab = 'signin' }: AuthMod
       .eq('is_active', true)
       .order('name')
       .then(({ data }) => {
-        if (data) setInstitutes(data as Institute[]);
+        if (data && data.length > 0) {
+          const insts = data as Institute[];
+          setInstitutes(insts);
+          setSelectedInstituteId((prev) => prev || insts[0].id);
+        }
       });
   }, [open]);
 
@@ -71,7 +76,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = 'signin' }: AuthMod
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
     const fullName = formData.get('fullName') as string;
-    const instituteId = formData.get('institute') as string;
+    const instituteId = selectedInstituteId || (formData.get('institute') as string);
     if (!instituteId) {
       setError('Please select your institute.');
       setIsSubmitting(false);
@@ -82,9 +87,6 @@ export function AuthModal({ open, onOpenChange, defaultTab = 'signin' }: AuthMod
     if (error) {
       setError(error);
     } else {
-      // Supabase sends a confirmation email by default.
-      // If email confirmation is disabled in the Supabase project,
-      // the user is signed in immediately.
       onOpenChange(false);
     }
   }
@@ -165,7 +167,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = 'signin' }: AuthMod
               </div>
               <div className="space-y-2">
                 <Label htmlFor="signup-institute">Institute</Label>
-                <Select name="institute">
+                <Select name="institute" value={selectedInstituteId} onValueChange={setSelectedInstituteId}>
                   <SelectTrigger id="signup-institute">
                     <SelectValue
                       placeholder={

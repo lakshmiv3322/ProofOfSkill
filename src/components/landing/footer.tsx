@@ -19,18 +19,18 @@ export function Footer({ onVerifyClick }: FooterProps) {
           {/* Brand */}
           <div className="col-span-2">
             <div className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-steel text-brass border border-hairline">
                 <ShieldCheck className="h-5 w-5" />
               </div>
-              <span className="text-lg font-bold tracking-tight text-white font-serif">ProofOfSkill</span>
+              <span className="text-lg font-headline font-bold tracking-tight text-porcelain">ProofOfSkill</span>
             </div>
-            <p className="mt-4 max-w-xs text-xs sm:text-sm text-slate-400 leading-relaxed">
+            <p className="mt-4 max-w-xs text-xs sm:text-sm text-slateText leading-relaxed">
               Transparent, deterministic skill assessment with cryptographically verifiable, shareable evidence.
             </p>
             <div className="mt-4">
               <button
                 onClick={onVerifyClick}
-                className="inline-flex items-center gap-1.5 text-xs text-emerald-400 font-semibold font-mono hover:text-emerald-300 transition-colors"
+                className="inline-flex items-center gap-1.5 text-xs text-brass font-semibold font-mono hover:text-amber-300 transition-colors"
               >
                 <ShieldCheck className="h-3.5 w-3.5" />
                 <span>Public Registry & Certificate Verifier</span>

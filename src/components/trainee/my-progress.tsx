@@ -96,6 +96,7 @@ export function MyProgress({ onViewCertificate }: MyProgressProps) {
       const { data: subData, error: subErr } = await (db as any)
         .from('submissions')
         .select('*')
+        .eq('institute_id', activeUser.institute_id)
         .eq('trainee_id', activeUser.id)
         .order('created_at', { ascending: false });
 

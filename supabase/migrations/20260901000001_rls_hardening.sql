@@ -40,44 +40,90 @@ $$;
 -- CLEANUP PREVIOUS POLICIES FOR RE-CREATION WITH STRICT RULES
 -- ─────────────────────────────────────────────────────────────
 
--- Submissions policies
-DROP POLICY IF EXISTS "submissions: trainee own" ON submissions;
-DROP POLICY IF EXISTS "submissions: assessor/admin tenant read" ON submissions;
-DROP POLICY IF EXISTS "submissions: trainee insert" ON submissions;
-DROP POLICY IF EXISTS "submissions: trainee update own draft" ON submissions;
-DROP POLICY IF EXISTS "submissions: assessor/admin update" ON submissions;
+DROP POLICY IF EXISTS "trades_select_tenant" ON trades;
+DROP POLICY IF EXISTS "trades_write_staff" ON trades;
+DROP POLICY IF EXISTS "rubrics_select_tenant" ON rubrics;
+DROP POLICY IF EXISTS "rubrics_write_staff" ON rubrics;
+DROP POLICY IF EXISTS "reference_clips_select_tenant" ON reference_clips;
+DROP POLICY IF EXISTS "reference_clips_write_staff" ON reference_clips;
+DROP POLICY IF EXISTS "pose_landmark_sets_select_tenant" ON pose_landmark_sets;
+DROP POLICY IF EXISTS "pose_landmark_sets_insert_trainee" ON pose_landmark_sets;
+DROP POLICY IF EXISTS "appeals_select_trainee" ON appeals;
+DROP POLICY IF EXISTS "appeals_select_staff" ON appeals;
+DROP POLICY IF EXISTS "appeals_insert_trainee" ON appeals;
+DROP POLICY IF EXISTS "appeals_update_staff" ON appeals;
+DROP POLICY IF EXISTS "usage_counters_select_admin" ON usage_counters;
 
--- Scores policies
-DROP POLICY IF EXISTS "scores: tenant read" ON scores;
-DROP POLICY IF EXISTS "scores: assessor/admin write" ON scores;
+DROP POLICY IF EXISTS "submissions_select_trainee" ON submissions;
+DROP POLICY IF EXISTS "submissions_select_staff" ON submissions;
+DROP POLICY IF EXISTS "submissions_insert_trainee" ON submissions;
+DROP POLICY IF EXISTS "submissions_update_trainee" ON submissions;
+DROP POLICY IF EXISTS "submissions_update_staff" ON submissions;
+DROP POLICY IF EXISTS "submissions_delete_trainee" ON submissions;
 
--- Feedback policies
-DROP POLICY IF EXISTS "feedback: tenant read" ON feedback;
-DROP POLICY IF EXISTS "feedback: tenant insert" ON feedback;
+DROP POLICY IF EXISTS "scores_select_trainee" ON scores;
+DROP POLICY IF EXISTS "scores_select_staff" ON scores;
+DROP POLICY IF EXISTS "scores_insert_trainee" ON scores;
+DROP POLICY IF EXISTS "scores_write_staff" ON scores;
 
--- Certificates policies
-DROP POLICY IF EXISTS "certificates: trainee own" ON certificates;
-DROP POLICY IF EXISTS "certificates: staff tenant read" ON certificates;
-DROP POLICY IF EXISTS "certificates: admin write" ON certificates;
+DROP POLICY IF EXISTS "feedback_select_trainee" ON feedback;
+DROP POLICY IF EXISTS "feedback_select_staff" ON feedback;
+DROP POLICY IF EXISTS "feedback_insert_trainee" ON feedback;
+DROP POLICY IF EXISTS "feedback_insert_staff" ON feedback;
 
--- Audit log policies
-DROP POLICY IF EXISTS "audit_log: admin read own institute" ON audit_log;
-DROP POLICY IF EXISTS "audit_log: service role insert" ON audit_log;
-DROP POLICY IF EXISTS "audit_log: no delete" ON audit_log;
+DROP POLICY IF EXISTS "certificates_select_trainee" ON certificates;
+DROP POLICY IF EXISTS "certificates_select_staff" ON certificates;
+DROP POLICY IF EXISTS "certificates_write_admin" ON certificates;
+
+DROP POLICY IF EXISTS "audit_log_select_admin" ON audit_log;
+DROP POLICY IF EXISTS "audit_log_insert_authenticated" ON audit_log;
+DROP POLICY IF EXISTS "audit_log_insert_service_role" ON audit_log;
 
 -- ─────────────────────────────────────────────────────────────
--- REFINED STRICT RLS POLICIES
+-- REFINED STRICT RLS POLICIES FOR ALL 13 TABLES
 -- ─────────────────────────────────────────────────────────────
 
--- SUBMISSIONS TABLE
--- Trainees can read their own submissions
-CREATE POLICY "submissions_select_trainee" ON submissions
+-- TRADES TABLE
+CREATE POLICY "trades_select_tenant" ON trades
   FOR SELECT TO authenticated
+  USING (institute_id = public.current_user_institute_id());
+
+CREATE POLICY "trades_write_staff" ON trades
+  FOR ALL TO authenticated
   USING (
-    trainee_id = public.current_user_id()
+    institute_id = public.current_user_institute_id()
+    AND public.current_user_role() IN ('institute_admin', 'platform_admin')
   );
 
--- Assessors and Admins can read submissions in their own institute
+-- RUBRICS TABLE
+CREATE POLICY "rubrics_select_tenant" ON rubrics
+  FOR SELECT TO authenticated
+  USING (institute_id = public.current_user_institute_id());
+
+CREATE POLICY "rubrics_write_staff" ON rubrics
+  FOR ALL TO authenticated
+  USING (
+    institute_id = public.current_user_institute_id()
+    AND public.current_user_role() IN ('assessor', 'institute_admin', 'platform_admin')
+  );
+
+-- REFERENCE CLIPS TABLE
+CREATE POLICY "reference_clips_select_tenant" ON reference_clips
+  FOR SELECT TO authenticated
+  USING (institute_id = public.current_user_institute_id());
+
+CREATE POLICY "reference_clips_write_staff" ON reference_clips
+  FOR ALL TO authenticated
+  USING (
+    institute_id = public.current_user_institute_id()
+    AND public.current_user_role() IN ('assessor', 'institute_admin', 'platform_admin')
+  );
+
+-- SUBMISSIONS TABLE
+CREATE POLICY "submissions_select_trainee" ON submissions
+  FOR SELECT TO authenticated
+  USING (trainee_id = public.current_user_id());
+
 CREATE POLICY "submissions_select_staff" ON submissions
   FOR SELECT TO authenticated
   USING (
@@ -85,7 +131,6 @@ CREATE POLICY "submissions_select_staff" ON submissions
     AND public.current_user_role() IN ('assessor', 'institute_admin', 'platform_admin')
   );
 
--- Trainees can insert their own submissions in their own institute
 CREATE POLICY "submissions_insert_trainee" ON submissions
   FOR INSERT TO authenticated
   WITH CHECK (
@@ -93,18 +138,14 @@ CREATE POLICY "submissions_insert_trainee" ON submissions
     AND institute_id = public.current_user_institute_id()
   );
 
--- Trainees can update their own draft/submitted submissions
 CREATE POLICY "submissions_update_trainee" ON submissions
   FOR UPDATE TO authenticated
   USING (
     trainee_id = public.current_user_id()
     AND status IN ('draft', 'submitted')
   )
-  WITH CHECK (
-    trainee_id = public.current_user_id()
-  );
+  WITH CHECK (trainee_id = public.current_user_id());
 
--- Assessors and Admins can update submissions in their institute
 CREATE POLICY "submissions_update_staff" ON submissions
   FOR UPDATE TO authenticated
   USING (
@@ -112,7 +153,6 @@ CREATE POLICY "submissions_update_staff" ON submissions
     AND public.current_user_role() IN ('assessor', 'institute_admin', 'platform_admin')
   );
 
--- Trainees can delete their own draft submissions
 CREATE POLICY "submissions_delete_trainee" ON submissions
   FOR DELETE TO authenticated
   USING (
@@ -120,9 +160,28 @@ CREATE POLICY "submissions_delete_trainee" ON submissions
     AND status = 'draft'
   );
 
+-- POSE LANDMARK SETS TABLE
+CREATE POLICY "pose_landmark_sets_select_tenant" ON pose_landmark_sets
+  FOR SELECT TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM submissions s
+      WHERE s.id = pose_landmark_sets.submission_id
+        AND (s.trainee_id = public.current_user_id() OR s.institute_id = public.current_user_institute_id())
+    )
+  );
+
+CREATE POLICY "pose_landmark_sets_insert_trainee" ON pose_landmark_sets
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM submissions s
+      WHERE s.id = pose_landmark_sets.submission_id
+        AND s.trainee_id = public.current_user_id()
+    )
+  );
 
 -- SCORES TABLE
--- Trainees can read scores for their own submissions
 CREATE POLICY "scores_select_trainee" ON scores
   FOR SELECT TO authenticated
   USING (
@@ -133,7 +192,6 @@ CREATE POLICY "scores_select_trainee" ON scores
     )
   );
 
--- Assessors and Admins can read scores in their institute
 CREATE POLICY "scores_select_staff" ON scores
   FOR SELECT TO authenticated
   USING (
@@ -141,7 +199,6 @@ CREATE POLICY "scores_select_staff" ON scores
     AND public.current_user_role() IN ('assessor', 'institute_admin', 'platform_admin')
   );
 
--- Trainees can insert scores generated for their own submissions (e.g. AI pipeline evaluation)
 CREATE POLICY "scores_insert_trainee" ON scores
   FOR INSERT TO authenticated
   WITH CHECK (
@@ -153,7 +210,6 @@ CREATE POLICY "scores_insert_trainee" ON scores
     )
   );
 
--- Assessors and Admins can write (insert/update/delete) scores in their institute
 CREATE POLICY "scores_write_staff" ON scores
   FOR ALL TO authenticated
   USING (
@@ -161,9 +217,7 @@ CREATE POLICY "scores_write_staff" ON scores
     AND public.current_user_role() IN ('assessor', 'institute_admin', 'platform_admin')
   );
 
-
 -- FEEDBACK TABLE
--- Trainees can read feedback on their own submissions
 CREATE POLICY "feedback_select_trainee" ON feedback
   FOR SELECT TO authenticated
   USING (
@@ -174,7 +228,6 @@ CREATE POLICY "feedback_select_trainee" ON feedback
     )
   );
 
--- Assessors and Admins can read feedback in their institute
 CREATE POLICY "feedback_select_staff" ON feedback
   FOR SELECT TO authenticated
   USING (
@@ -182,7 +235,6 @@ CREATE POLICY "feedback_select_staff" ON feedback
     AND public.current_user_role() IN ('assessor', 'institute_admin', 'platform_admin')
   );
 
--- Trainees can insert AI feedback on their own submissions
 CREATE POLICY "feedback_insert_trainee" ON feedback
   FOR INSERT TO authenticated
   WITH CHECK (
@@ -194,7 +246,6 @@ CREATE POLICY "feedback_insert_trainee" ON feedback
     )
   );
 
--- Assessors and Admins can insert feedback in their institute
 CREATE POLICY "feedback_insert_staff" ON feedback
   FOR INSERT TO authenticated
   WITH CHECK (
@@ -202,16 +253,13 @@ CREATE POLICY "feedback_insert_staff" ON feedback
     AND public.current_user_role() IN ('assessor', 'institute_admin', 'platform_admin')
   );
 
-
 -- CERTIFICATES TABLE
 -- Trainees can read their own certificates
 CREATE POLICY "certificates_select_trainee" ON certificates
   FOR SELECT TO authenticated
-  USING (
-    trainee_id = public.current_user_id()
-  );
+  USING (trainee_id = public.current_user_id());
 
--- Staff (Assessors and Admins) can read certificates in their institute
+-- Staff can read certificates in their institute
 CREATE POLICY "certificates_select_staff" ON certificates
   FOR SELECT TO authenticated
   USING (
@@ -219,7 +267,7 @@ CREATE POLICY "certificates_select_staff" ON certificates
     AND public.current_user_role() IN ('assessor', 'institute_admin', 'platform_admin')
   );
 
--- Admins can write (insert/update/delete) certificates in their institute
+-- Admins / service_role can insert/update certificates
 CREATE POLICY "certificates_write_admin" ON certificates
   FOR ALL TO authenticated
   USING (
@@ -227,20 +275,49 @@ CREATE POLICY "certificates_write_admin" ON certificates
     AND public.current_user_role() IN ('institute_admin', 'platform_admin')
   );
 
--- PUBLIC ACCESS DENIED FOR DIRECT CERTIFICATE SELECT:
--- No policy is created for `anon` role on `certificates`.
--- Public verification MUST go through `get_certificate_by_code` RPC function.
+-- Note: NO public/anon SELECT policy is created for certificates table directly.
+-- Public certificate verification MUST go through `get_certificate_by_code` RPC function.
 
+-- APPEALS TABLE
+CREATE POLICY "appeals_select_trainee" ON appeals
+  FOR SELECT TO authenticated
+  USING (trainee_id = public.current_user_id());
 
--- AUDIT_LOG TABLE
--- Append-only log. Authenticated users can insert logs for their institute.
-CREATE POLICY "audit_log_insert_authenticated" ON audit_log
-  FOR INSERT TO authenticated
-  WITH CHECK (
+CREATE POLICY "appeals_select_staff" ON appeals
+  FOR SELECT TO authenticated
+  USING (
     institute_id = public.current_user_institute_id()
+    AND public.current_user_role() IN ('assessor', 'institute_admin', 'platform_admin')
   );
 
--- Institute/Platform Admins can read audit logs in their institute
+CREATE POLICY "appeals_insert_trainee" ON appeals
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    trainee_id = public.current_user_id()
+    AND institute_id = public.current_user_institute_id()
+  );
+
+CREATE POLICY "appeals_update_staff" ON appeals
+  FOR UPDATE TO authenticated
+  USING (
+    institute_id = public.current_user_institute_id()
+    AND public.current_user_role() IN ('assessor', 'institute_admin', 'platform_admin')
+  );
+
+-- USAGE_COUNTERS TABLE
+CREATE POLICY "usage_counters_select_admin" ON usage_counters
+  FOR SELECT TO authenticated
+  USING (
+    institute_id = public.current_user_institute_id()
+    AND public.current_user_role() IN ('institute_admin', 'platform_admin')
+  );
+
+-- AUDIT_LOG TABLE
+-- Strict insert-only via service_role (or via log_audit_event SECURITY DEFINER helper function).
+CREATE POLICY "audit_log_insert_service_role" ON audit_log
+  FOR INSERT TO service_role
+  WITH CHECK (true);
+
 CREATE POLICY "audit_log_select_admin" ON audit_log
   FOR SELECT TO authenticated
   USING (
@@ -248,4 +325,26 @@ CREATE POLICY "audit_log_select_admin" ON audit_log
     AND public.current_user_role() IN ('institute_admin', 'platform_admin')
   );
 
--- No UPDATE or DELETE policies exist for audit_log, enforcing append-only behavior.
+-- ─────────────────────────────────────────────────────────────
+-- SECURITY DEFINER RPC: log_audit_event
+-- Enables client code to request audit logging safely.
+-- ─────────────────────────────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION public.log_audit_event(
+  p_action text,
+  p_entity_type text,
+  p_entity_id uuid DEFAULT NULL,
+  p_metadata jsonb DEFAULT '{}'::jsonb
+) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_user users%ROWTYPE;
+BEGIN
+  SELECT * INTO v_user FROM users WHERE auth_id = auth.uid() LIMIT 1;
+  IF v_user.id IS NOT NULL THEN
+    INSERT INTO audit_log (institute_id, actor_id, actor_role, action, entity_type, entity_id, metadata)
+    VALUES (v_user.institute_id, v_user.id, v_user.role, p_action, p_entity_type, p_entity_id, p_metadata);
+  END IF;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.log_audit_event TO authenticated;

@@ -42,8 +42,11 @@ export function RubricEditor() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
+    if (!activeUser?.institute_id) return;
+
     db.from('rubrics')
       .select('*')
+      .eq('institute_id', activeUser.institute_id)
       .then(({ data }) => {
         if (data && data.length > 0) {
           const rList = data as Rubric[];
@@ -55,6 +58,7 @@ export function RubricEditor() {
 
     db.from('trades')
       .select('*')
+      .eq('institute_id', activeUser.institute_id)
       .then(({ data }) => {
         if (data) {
           const tMap = Object.fromEntries(
@@ -63,7 +67,7 @@ export function RubricEditor() {
           setTradeMap(tMap);
         }
       });
-  }, [db]);
+  }, [db, activeUser?.institute_id]);
 
   const selectedRubric = rubrics.find((r) => r.id === selectedRubricId);
 

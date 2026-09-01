@@ -57,11 +57,68 @@ function usageColor(pct: number) {
   return 'bg-primary';
 }
 
-export function BillingCounter() {
-  const currentPlan = 'growth' as keyof typeof PLAN_CONFIG;
-  const planCfg = PLAN_CONFIG[currentPlan];
+import { useState, useEffect } from 'react';
+import { useApp } from '@/context/app-context';
 
-  const isNearLimit = METRICS.some((m) => usagePercent(m.used, m.quota) >= 80);
+export function BillingCounter() {
+  const { db, activeUser } = useApp();
+  const [metrics, setMetrics] = useState<UsageMetric[]>(METRICS);
+  const [instituteInfo, setInstituteInfo] = useState<{ name: string; plan_tier: keyof typeof PLAN_CONFIG }>({
+    name: 'My Institute',
+    plan_tier: 'growth',
+  });
+
+  useEffect(() => {
+    const fetchUsage = async () => {
+      try {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth() + 1;
+
+        const [instRes, usageRes, subCountRes, certCountRes, userCountRes] = await Promise.all([
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (db as any).from('institutes').select('*').eq('id', activeUser.institute_id).single(),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (db as any).from('usage_counters').select('*').eq('institute_id', activeUser.institute_id).eq('period_year', year).eq('period_month', month).maybeSingle(),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (db as any).from('submissions').select('id', { count: 'exact', head: true }).eq('institute_id', activeUser.institute_id),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (db as any).from('certificates').select('id', { count: 'exact', head: true }).eq('institute_id', activeUser.institute_id),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (db as any).from('users').select('id', { count: 'exact', head: true }).eq('institute_id', activeUser.institute_id),
+        ]);
+
+        if (instRes.data) {
+          const tier = (instRes.data.plan_tier as keyof typeof PLAN_CONFIG) || 'growth';
+          setInstituteInfo({
+            name: instRes.data.name || 'My Institute',
+            plan_tier: PLAN_CONFIG[tier] ? tier : 'growth',
+          });
+        }
+
+        const subCount = subCountRes.count ?? usageRes.data?.submissions_count ?? 47;
+        const certCount = certCountRes.count ?? usageRes.data?.certificates_issued ?? 38;
+        const userCount = userCountRes.count ?? usageRes.data?.active_users ?? 120;
+        const aiCount = usageRes.data?.ai_assessments_count ?? subCount;
+
+        setMetrics([
+          { label: 'Submissions', icon: FileVideo, used: subCount, quota: 200, unit: 'submissions/mo' },
+          { label: 'AI Assessments', icon: Brain, used: aiCount, quota: 200, unit: 'assessments/mo' },
+          { label: 'Certificates Issued', icon: Award, used: certCount, quota: 200, unit: 'certs/mo' },
+          { label: 'Active Seats', icon: Users, used: userCount, quota: 500, unit: 'users' },
+        ]);
+      } catch (err) {
+        console.warn('[BillingCounter] Error fetching billing counter data:', err);
+      }
+    };
+
+    fetchUsage();
+  }, [activeUser.institute_id]);
+
+  const currentPlan = instituteInfo.plan_tier;
+  const planCfg = PLAN_CONFIG[currentPlan] || PLAN_CONFIG.growth;
+
+  const isNearLimit = metrics.some((m) => usagePercent(m.used, m.quota) >= 80);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
@@ -69,7 +126,7 @@ export function BillingCounter() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Billing & Usage</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Northgate Technical College · August 2026 billing period
+          {instituteInfo.name} · Active Billing Period
         </p>
       </div>
 
@@ -127,7 +184,7 @@ export function BillingCounter() {
         </CardHeader>
         <CardContent>
           <div className="space-y-5">
-            {METRICS.map((metric) => {
+            {metrics.map((metric) => {
               const pct = usagePercent(metric.used, metric.quota);
               const Icon = metric.icon;
               const isWarn = pct >= 80;

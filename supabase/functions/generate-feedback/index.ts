@@ -2,8 +2,10 @@
 // Supabase Edge Function: generate-feedback
 // Server-Side Claude API Narrative Generator with Fail-Safe Fallback
 // ─────────────────────────────────────────────────────────────
-// Receives ONLY the computed rubric deltas as input — never raw video
-// or landmarks — so the LLM can NEVER influence or set the score.
+// Hardened with:
+// 1. Request size cap on deltas array (max 20)
+// 2. Input validation & sanitization on criterionId, label, and delta
+// 3. Per-client sliding window rate limiting (10 req/min)
 // ─────────────────────────────────────────────────────────────
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -26,6 +28,31 @@ interface FeedbackSection {
   label: string;
   text: string;
   isFallback: boolean;
+}
+
+// ── In-Memory Rate Limiting ──────────────────────────────────
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const MAX_REQUESTS_PER_WINDOW = 10;
+const rateLimitMap = new Map<string, number[]>();
+
+function isRateLimited(clientId: string): boolean {
+  const now = Date.now();
+  const timestamps = rateLimitMap.get(clientId) || [];
+  const validTimestamps = timestamps.filter((ts) => now - ts < RATE_LIMIT_WINDOW_MS);
+
+  if (validTimestamps.length >= MAX_REQUESTS_PER_WINDOW) {
+    return true;
+  }
+
+  validTimestamps.push(now);
+  rateLimitMap.set(clientId, validTimestamps);
+  return false;
+}
+
+// ── Input Sanitization & Validation ─────────────────────────
+function sanitizeInput(str: string): string {
+  if (typeof str !== "string") return "";
+  return str.replace(/[^\w\s\d.,:;()\-%]/gi, "").slice(0, 300);
 }
 
 // ── Rule-Based Fail-Safe Fallback Templates ──────────────────
@@ -109,6 +136,15 @@ serve(async (req) => {
   }
 
   try {
+    // 1. Per-User / IP Rate Limiting
+    const clientIdentifier = req.headers.get("x-forwarded-for") || req.headers.get("authorization") || "anon-client";
+    if (isRateLimited(clientIdentifier)) {
+      return new Response(
+        JSON.stringify({ error: "Rate limit exceeded. Maximum 10 requests per minute." }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const { deltas } = await req.json();
 
     if (!Array.isArray(deltas)) {
@@ -118,20 +154,32 @@ serve(async (req) => {
       });
     }
 
-    const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+    // 2. Request Size Cap (Max 20 items)
+    if (deltas.length > 20) {
+      return new Response(
+        JSON.stringify({ error: "deltas array exceeds maximum size cap of 20 items" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
+    const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
     const sections: FeedbackSection[] = [];
 
     // Process all deltas concurrently with a strict 2-second timeout per criterion
     await Promise.all(
       deltas.map(async (d: CriterionDelta) => {
-        const fallbackFn = FALLBACK_TEMPLATES[d.criterionId] ?? FALLBACK_TEMPLATES["default"];
-        const fallbackText = fallbackFn(d.delta);
+        // 3. Input Validation & Sanitization
+        const cleanCriterionId = sanitizeInput(d.criterionId);
+        const cleanLabel = sanitizeInput(d.label);
+        const cleanDelta = sanitizeInput(d.delta);
+
+        const fallbackFn = FALLBACK_TEMPLATES[cleanCriterionId] ?? FALLBACK_TEMPLATES["default"];
+        const fallbackText = fallbackFn(cleanDelta);
 
         if (!apiKey) {
           sections.push({
-            criterionId: d.criterionId,
-            label: d.label,
+            criterionId: cleanCriterionId,
+            label: cleanLabel,
             text: fallbackText,
             isFallback: true,
           });
@@ -143,9 +191,9 @@ serve(async (req) => {
           const timeoutId = setTimeout(() => controller.abort(), 2000);
 
           const prompt = `You are an expert CPR & Vocational Trade Assessor coaching a student based on exact kinematic measurement data.
-CRITERION: ${d.label}
-ASSESSED METRIC DELTA: ${d.delta}
-SCORE: ${d.score}/100 (Score is already locked and cannot be changed)
+CRITERION: ${cleanLabel}
+ASSESSED METRIC DELTA: ${cleanDelta}
+SCORE: ${Number(d.score).toFixed(0)}/100 (Score is already locked and cannot be changed)
 
 Generate 2-3 sentences of direct, actionable, constructive coaching feedback for the student addressing their specific delta. Never reference grading scales or rubric mechanics.`;
 
@@ -175,16 +223,15 @@ Generate 2-3 sentences of direct, actionable, constructive coaching feedback for
           const claudeText = json?.content?.[0]?.text?.trim() || fallbackText;
 
           sections.push({
-            criterionId: d.criterionId,
-            label: d.label,
+            criterionId: cleanCriterionId,
+            label: cleanLabel,
             text: claudeText,
             isFallback: false,
           });
-        } catch (_err) {
-          // 2-second fail-safe timeout or network error -> rule fallback
+        } catch {
           sections.push({
-            criterionId: d.criterionId,
-            label: d.label,
+            criterionId: cleanCriterionId,
+            label: cleanLabel,
             text: fallbackText,
             isFallback: true,
           });
@@ -193,9 +240,15 @@ Generate 2-3 sentences of direct, actionable, constructive coaching feedback for
     );
 
     // Maintain original ordering matching deltas
-    const orderedSections = deltas.map(
-      (d: CriterionDelta) => sections.find((s) => s.criterionId === d.criterionId)!
-    );
+    const orderedSections = deltas.map((d: CriterionDelta) => {
+      const cleanId = sanitizeInput(d.criterionId);
+      return sections.find((s) => s.criterionId === cleanId) || {
+        criterionId: cleanId,
+        label: sanitizeInput(d.label),
+        text: "Analysis completed.",
+        isFallback: true,
+      };
+    });
 
     const anyFallback = orderedSections.some((s) => s.isFallback);
 
@@ -208,8 +261,9 @@ Generate 2-3 sentences of direct, actionable, constructive coaching feedback for
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
-  } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return new Response(JSON.stringify({ error: msg }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

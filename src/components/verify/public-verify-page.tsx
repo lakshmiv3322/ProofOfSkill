@@ -112,41 +112,8 @@ export function PublicVerifyPage({
         console.info('[Verify] Supabase RPC lookup notice:', e);
       }
 
-      // 2. Direct Supabase Table Select Fallback
-      try {
-        const { data: certs } = await (supabase as any)
-          .from('certificates')
-          .select('*, users!trainee_id(full_name), trades(name), institutes(name)')
-          .or(`verification_code.eq.${code},id.eq.${code}`)
-          .limit(1);
-
-        if (certs && certs.length > 0) {
-          const cert = certs[0];
-          const hash = await computeVerificationHash({
-            certificateId: cert.id,
-            submissionId: cert.submission_id,
-            traineeId: cert.trainee_id,
-            score: Number(cert.overall_score),
-            issuedAt: cert.issued_at,
-          });
-          setLedgerHash(hash);
-
-          setCertData({
-            certificate: cert,
-            trainee: null,
-            assessor: null,
-            trade: null,
-            rubric: null,
-            institute: null,
-            trainee_name: cert.users?.full_name || 'Verified Candidate',
-            trade_name: cert.trades?.name || 'CPR / First-Aid Chest Compression',
-            institute_name: cert.institutes?.name || 'Apex Vocational Institute',
-          });
-        }
-      } catch (e) {
-        console.info('[Verify] Direct table select notice:', e);
-      }
-
+      // Direct table select on certificates is intentionally disabled by RLS policy.
+      // Certificates are strictly readable publicly via get_certificate_by_code RPC.
       setIsLoading(false);
     };
 

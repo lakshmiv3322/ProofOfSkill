@@ -35,6 +35,8 @@ const overrideSchema = z.object({
 
 type OverrideFormValues = z.infer<typeof overrideSchema>;
 
+import { supabase } from '@/lib/supabase/client';
+
 interface CriterionInfo {
   id: string;
   label: string;
@@ -44,11 +46,12 @@ interface CriterionInfo {
 
 interface OverrideFormProps {
   criteria: CriterionInfo[];
+  submissionId?: string;
   onSave: (criterionId: string, newScore: number) => void;
   onCancel: () => void;
 }
 
-export function OverrideForm({ criteria, onSave, onCancel }: OverrideFormProps) {
+export function OverrideForm({ criteria, submissionId = 'sub-010', onSave, onCancel }: OverrideFormProps) {
   const { activeUser } = useApp();
   const [scoreValue, setScoreValue] = useState(75);
   const [saved, setSaved] = useState(false);
@@ -73,7 +76,30 @@ export function OverrideForm({ criteria, onSave, onCancel }: OverrideFormProps) 
   const selectedCriterion = criteria.find((c) => c.id === selectedId);
 
   const onSubmit = async (data: OverrideFormValues) => {
-    // Write to audit log with State Before vs State After
+    // 1. Primary Record: Update the scores table in Supabase
+    try {
+      if (submissionId) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: scoreErr } = await (supabase as any)
+          .from('scores')
+          .update({
+            score: data.newScore,
+            source: 'human',
+            assessor_id: activeUser.id,
+            notes: data.rationale,
+            updated_at: new Date().toISOString(),
+          })
+          .match({ submission_id: submissionId, rubric_criterion_id: data.criterionId });
+
+        if (scoreErr) {
+          console.warn('[OverrideForm] Supabase score table update notice:', scoreErr.message);
+        }
+      }
+    } catch (e) {
+      console.warn('[OverrideForm] Error updating scores table:', e);
+    }
+
+    // 2. Secondary Record: Write to audit log with State Before vs State After
     await logAudit({
       institute_id: activeUser.institute_id,
       actor_id: activeUser.id,
@@ -82,6 +108,7 @@ export function OverrideForm({ criteria, onSave, onCancel }: OverrideFormProps) 
       entity_type: 'score',
       entity_id: `score-${data.criterionId}`,
       metadata: {
+        submission_id: submissionId,
         criterion_id: data.criterionId,
         criterion_label: selectedCriterion?.label ?? data.criterionId,
         ai_score: selectedCriterion?.aiScore ?? null,

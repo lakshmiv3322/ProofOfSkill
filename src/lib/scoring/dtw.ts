@@ -5,7 +5,7 @@
 // against the certified gold-standard CPR exemplar sequence (ref-002).
 // ─────────────────────────────────────────────────────────────
 
-import type { PoseLandmark, PosePoint } from '@/types/database';
+import type { PoseLandmark } from '@/types/database';
 
 export interface DTWResult {
   /** BPM delta vs 110 BPM reference. Negative = too slow, Positive = too fast. */

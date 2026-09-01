@@ -22,11 +22,11 @@ interface PoseCanvasProps {
   showHUD?: boolean;
 }
 
-// ── Neon HUD Palette ──────────────────────────────────────────
-const NEON_GREEN   = '#10b981'; // Emerald 500
-const NEON_ACTIVE  = 'rgba(16, 185, 129, 0.95)';
-const NEON_CYAN    = '#06b6d4'; // Cyan 500
-const NEON_IDLE    = 'rgba(16, 185, 129, 0.25)';
+// ── Neon HUD Palette (Laser Cyan #00f0ff Token Architecture) ────
+const NEON_GREEN   = '#00f0ff'; // Laser Cyan #00f0ff
+const NEON_ACTIVE  = 'rgba(0, 240, 255, 0.95)';
+const NEON_CYAN    = '#00f0ff'; // Laser Cyan #00f0ff
+const NEON_IDLE    = 'rgba(0, 240, 255, 0.25)';
 const WHITE_JOINT  = 'rgba(255, 255, 255, 0.95)';
 const WHITE_IDLE   = 'rgba(255, 255, 255, 0.25)';
 const PATIENT_COLOR = 'rgba(255, 255, 255, 0.08)';

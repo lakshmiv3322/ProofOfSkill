@@ -158,6 +158,7 @@ export function evaluateSubmissionWithLandmarks(
     criteriaScores,
     deltas,
     metrics: { actualBpm, actualDepthCm, recoilVariancePct, postureVarianceScore },
+    // true = computed locally (client fallback); server path overrides to false
     isOfflineScore: true,
   };
 }

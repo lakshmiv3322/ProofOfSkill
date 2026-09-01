@@ -1,16 +1,9 @@
 import { useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import {
-  ShieldCheck,
   CheckCircle2,
-  Clock,
   Award,
   Sliders,
   FileCheck2,
-  Hash,
-  ExternalLink,
 } from 'lucide-react';
 
 interface CalibrationCriterion {
@@ -83,11 +76,6 @@ interface DemoReportProps {
 
 export function DemoReport({ onVerifyClick }: DemoReportProps) {
   const [selectedRow, setSelectedRow] = useState<string | null>(null);
-
-  const weightedScore = LEDGER_ITEMS.reduce(
-    (acc, c) => acc + (c.score * c.weight) / 100,
-    0
-  );
 
   return (
     <section id="demo-report" className="relative py-24 sm:py-32 bg-basalt">

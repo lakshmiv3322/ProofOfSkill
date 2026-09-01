@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { PoseCanvas, type LivePoint } from './pose-canvas';
 import { poseDetector } from '@/lib/pose/pose-detector';
-import { evaluateSubmissionServer, evaluateSubmissionWithLandmarks } from '@/lib/scoring/rubric-engine';
+import { evaluateSubmissionServer } from '@/lib/scoring/rubric-engine';
 import { generateFullFeedback } from '@/lib/llm/feedback-generator';
 import { useApp } from '@/context/app-context';
 import { logAudit } from '@/lib/supabase/audit';
@@ -21,6 +21,7 @@ import {
   Video,
   Zap,
   RefreshCw,
+  ArrowLeft,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { RubricResult } from '@/lib/scoring/rubric-engine';
@@ -334,7 +335,7 @@ export function VideoCapture({ onBack, onComplete }: VideoCaptureProps) {
     setProcessingMsg('Executing server-side deterministic DTW scoring engine…');
     setProcessingProgress(85);
 
-    const submissionId = `sub-${Date.now()}`;
+    const submissionId = `sub-${crypto.randomUUID()}`;
 
     // 2. DETERMINISTIC SCORING — Evaluates real landmark sequence (Edge function source of truth with fallback)
     const evalResult = await evaluateSubmissionServer(submissionId, rubricConfig, landmarksSeq);
@@ -370,14 +371,14 @@ export function VideoCapture({ onBack, onComplete }: VideoCaptureProps) {
 
       // B. Insert Scores Rows (one per criterion)
       const scoreRows = evalResult.deltas.map((d) => ({
-        id: `score-${Date.now()}-${d.criterionId}`,
+        id: `score-${crypto.randomUUID()}`,
         institute_id: activeUser.institute_id,
         submission_id: submissionId,
         rubric_criterion_id: d.criterionId,
         score: d.score,
         max_score: 100,
         weight: d.weight,
-        source: evalResult.isOfflineScore ? 'ai-local' : 'ai',
+        source: 'ai', // Valid enum value: 'ai' | 'human'
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }));
@@ -387,7 +388,7 @@ export function VideoCapture({ onBack, onComplete }: VideoCaptureProps) {
 
       // C. Insert Feedback Row
       const feedbackRow = {
-        id: `fb-${Date.now()}`,
+        id: `fb-${crypto.randomUUID()}`,
         institute_id: activeUser.institute_id,
         submission_id: submissionId,
         author_id: activeUser.id,
@@ -403,7 +404,7 @@ export function VideoCapture({ onBack, onComplete }: VideoCaptureProps) {
 
       // D. Store Extracted Landmark Sequence (pose_landmark_sets)
       const landmarkSet: PoseLandmarkSet = {
-        id: `pls-${Date.now()}`,
+        id: `pls-${crypto.randomUUID()}`,
         institute_id: activeUser.institute_id,
         submission_id: submissionId,
         frame_count: landmarksSeq.length > 0 ? landmarksSeq.length : 150,
@@ -475,8 +476,9 @@ export function VideoCapture({ onBack, onComplete }: VideoCaptureProps) {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={onBack} className="text-xs -ml-2">
-              ← Back
+            <Button variant="ghost" size="sm" onClick={onBack} className="gap-1.5 text-xs -ml-2">
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back
             </Button>
             <h1 className="text-xl font-bold tracking-tight">CPR Chest Compression Assessment</h1>
             <Badge variant="outline" className="text-xs border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
@@ -782,7 +784,14 @@ function ResultsPanel({
         )}>
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Certified Rubric Score</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium text-muted-foreground">Certified Rubric Score</p>
+                {rubricResult.isOfflineScore && (
+                  <Badge variant="outline" className="text-[9px] bg-amber-500/15 text-amber-500 border-amber-500/30 px-1.5 py-0">
+                    ⚠ Offline Fallback
+                  </Badge>
+                )}
+              </div>
               <p className="text-4xl font-extrabold mt-1 tracking-tight font-serif">{overallScore}<span className="text-lg font-medium text-muted-foreground font-sans">%</span></p>
               <p className={cn('text-xs font-semibold mt-0.5 font-mono', passed ? 'text-emerald-600' : 'text-destructive')}>
                 {passed ? '✓ Meets competency threshold (70%)' : '✗ Below competency threshold (70%)'}

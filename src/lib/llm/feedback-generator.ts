@@ -114,7 +114,7 @@ export async function generateFullFeedback(
     });
 
     const timeoutPromise = new Promise<{ data: null; error: Error }>((resolve) =>
-      setTimeout(() => resolve({ data: null, error: new Error('Client timeout') }), 2500)
+      setTimeout(() => resolve({ data: null, error: new Error('Client timeout') }), 2000)
     );
 
     const result = await Promise.race([edgePromise, timeoutPromise]);

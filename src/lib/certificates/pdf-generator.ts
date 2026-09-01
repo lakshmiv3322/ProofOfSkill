@@ -3,7 +3,13 @@
 // ─────────────────────────────────────────────────────────────
 
 import { jsPDF } from 'jspdf';
-import type { Certificate, User, Trade, Rubric, Institute } from '@/types/database';
+import type { Certificate } from '@/types/database';
+
+export interface CriterionResultItem {
+  label: string;
+  score: number;
+  passed: boolean;
+}
 
 export interface CertificateGenerationParams {
   certificate: Certificate;
@@ -14,6 +20,7 @@ export interface CertificateGenerationParams {
   passThreshold?: number;
   assessorName?: string;
   landmarkHash?: string;
+  criteriaResults?: CriterionResultItem[];
 }
 
 /**
@@ -209,13 +216,33 @@ export async function generateCertificatePDF(params: CertificateGenerationParams
   doc.setTextColor(203, 213, 225);
   doc.text(`ASSESSED STANDARDS (${rubricName})`, 100, 116);
 
-  doc.setFont('courier', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(148, 163, 184);
-  doc.text('• Compression Rate: 100-120 BPM Target (DTW Aligned) ............ [PASSED]', 100, 123);
-  doc.text('• Compression Depth: 5.0-6.0 cm Adult Range (Kinematics) ........ [PASSED]', 100, 129);
-  doc.text('• Full Chest Recoil: Full Chamber Refill (< 5% Leaning) .......... [PASSED]', 100, 135);
-  doc.text('• Arm Posture & Alignment: Vertical Force Transfer .............. [PASSED]', 100, 141);
+  const defaultCriteria: CriterionResultItem[] = [
+    { label: 'Compression Rate (100-120 BPM Target)', score: Number(certificate.overall_score), passed: Number(certificate.overall_score) >= passThreshold },
+    { label: 'Compression Depth (5.0-6.0 cm Range)', score: Number(certificate.overall_score), passed: Number(certificate.overall_score) >= passThreshold },
+    { label: 'Full Chest Recoil (< 5% Leaning)', score: Number(certificate.overall_score), passed: Number(certificate.overall_score) >= passThreshold },
+    { label: 'Arm Posture & Vertical Alignment', score: Number(certificate.overall_score), passed: Number(certificate.overall_score) >= passThreshold },
+  ];
+
+  const criteriaList = (params.criteriaResults && params.criteriaResults.length > 0)
+    ? params.criteriaResults
+    : defaultCriteria;
+
+  criteriaList.slice(0, 4).forEach((c, idx) => {
+    const yPos = 123 + idx * 6;
+    const isPassed = c.passed ?? (c.score >= passThreshold);
+    const tag = isPassed ? '[PASSED]' : '[FAILED]';
+    doc.setFont('courier', 'normal');
+    doc.setFontSize(8);
+    if (isPassed) {
+      doc.setTextColor(52, 211, 153);
+    } else {
+      doc.setTextColor(248, 113, 113);
+    }
+    const cleanLabel = c.label.length > 42 ? c.label.slice(0, 39) + '...' : c.label;
+    const dotsCount = Math.max(2, 46 - cleanLabel.length);
+    const dots = '.'.repeat(dotsCount);
+    doc.text(`• ${cleanLabel} ${dots} ${tag}`, 100, yPos);
+  });
 
   // Bottom Row: Assessor Signature, Issue Date & Verification Code
   doc.setFont('times', 'italic');
