@@ -21,29 +21,81 @@ interface AuthModalProps {
   defaultTab?: 'signin' | 'signup';
 }
 
+const DEFAULT_INSTITUTES: Institute[] = [
+  {
+    id: '00000000-0000-0000-0000-000000000001',
+    name: 'Apex Vocational Institute',
+    slug: 'apex-vocational',
+    plan_tier: 'growth',
+    max_seats: 100,
+    contact_email: 'admin@apex.edu',
+    contact_phone: null,
+    logo_url: null,
+    is_active: true,
+    settings: {
+      allow_appeals: true,
+      appeal_window_days: 14,
+      require_human_review: true,
+      certificate_template: 'standard',
+      branding_color: '#00f0ff',
+    },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000002',
+    name: 'Northgate Technical College',
+    slug: 'northgate-tech',
+    plan_tier: 'enterprise',
+    max_seats: 500,
+    contact_email: 'admin@northgate.edu',
+    contact_phone: null,
+    logo_url: null,
+    is_active: true,
+    settings: {
+      allow_appeals: true,
+      appeal_window_days: 30,
+      require_human_review: true,
+      certificate_template: 'enterprise',
+      branding_color: '#c89b3c',
+    },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+];
+
 export function AuthModal({ open, onOpenChange, defaultTab = 'signin' }: AuthModalProps) {
   const { signIn, signUp } = useAuth();
   const [tab, setTab] = useState<'signin' | 'signup'>(defaultTab);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [institutes, setInstitutes] = useState<Institute[]>([]);
-  const [selectedInstituteId, setSelectedInstituteId] = useState<string>('');
+  const [institutes, setInstitutes] = useState<Institute[]>(DEFAULT_INSTITUTES);
+  const [selectedInstituteId, setSelectedInstituteId] = useState<string>(DEFAULT_INSTITUTES[0].id);
 
-  // Load active institutes for the sign-up dropdown
+  // Load active institutes for the sign-up dropdown with graceful offline fallback
   useEffect(() => {
     if (!open) return;
-    supabase
-      .from('institutes')
-      .select('*')
-      .eq('is_active', true)
-      .order('name')
-      .then(({ data }) => {
-        if (data && data.length > 0) {
+    async function loadInstitutes() {
+      try {
+        const { data, error } = await supabase
+          .from('institutes')
+          .select('*')
+          .eq('is_active', true)
+          .order('name');
+        if (!error && data && data.length > 0) {
           const insts = data as Institute[];
           setInstitutes(insts);
           setSelectedInstituteId((prev) => prev || insts[0].id);
+        } else {
+          setInstitutes(DEFAULT_INSTITUTES);
+          setSelectedInstituteId((prev) => prev || DEFAULT_INSTITUTES[0].id);
         }
-      });
+      } catch {
+        setInstitutes(DEFAULT_INSTITUTES);
+        setSelectedInstituteId((prev) => prev || DEFAULT_INSTITUTES[0].id);
+      }
+    }
+    loadInstitutes();
   }, [open]);
 
   // Reset error when switching tabs or opening
