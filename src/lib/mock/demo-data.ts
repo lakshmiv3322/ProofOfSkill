@@ -3,7 +3,7 @@
 // Single consolidated demo data source gated behind VITE_DEMO_MODE.
 // ─────────────────────────────────────────────────────────────
 
-export const IS_DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
+export const IS_DEMO_MODE = import.meta.env.VITE_DEMO_MODE !== 'false';
 
 export const DEMO_CERTIFICATE = {
   id: 'cert-001-demo',

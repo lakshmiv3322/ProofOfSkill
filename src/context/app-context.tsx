@@ -24,8 +24,68 @@ import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/context/auth-context';
 
 // ── Demo mode flag ────────────────────────────────────────────
+// Defaults to true in web builds unless explicitly disabled via VITE_DEMO_MODE="false"
+export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE !== 'false';
 
-export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
+// Fallback demo user profiles per role for zero-config offline evaluations
+const DEMO_PERSONA_USERS: Record<UserRole, User> = {
+  trainee: {
+    id: '00000000-0000-0000-0000-000000000002',
+    auth_id: '00000000-0000-0000-0000-000000000002',
+    institute_id: '00000000-0000-0000-0000-000000000001',
+    email: 'sarah.chen@apex.edu',
+    full_name: 'Sarah Chen',
+    role: 'trainee',
+    avatar_url: null,
+    is_active: true,
+    last_login_at: new Date().toISOString(),
+    metadata: {},
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  assessor: {
+    id: '00000000-0000-0000-0000-000000000003',
+    auth_id: '00000000-0000-0000-0000-000000000003',
+    institute_id: '00000000-0000-0000-0000-000000000001',
+    email: 'mike.rodriguez@apex.edu',
+    full_name: 'Mike Rodriguez',
+    role: 'assessor',
+    avatar_url: null,
+    is_active: true,
+    last_login_at: new Date().toISOString(),
+    metadata: {},
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  institute_admin: {
+    id: '00000000-0000-0000-0000-000000000004',
+    auth_id: '00000000-0000-0000-0000-000000000004',
+    institute_id: '00000000-0000-0000-0000-000000000001',
+    email: 'jennifer.park@apex.edu',
+    full_name: 'Jennifer Park',
+    role: 'institute_admin',
+    avatar_url: null,
+    is_active: true,
+    last_login_at: new Date().toISOString(),
+    metadata: {},
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  platform_admin: {
+    id: '00000000-0000-0000-0000-000000000005',
+    auth_id: '00000000-0000-0000-0000-000000000005',
+    institute_id: '00000000-0000-0000-0000-000000000001',
+    email: 'admin@proofofskill.com',
+    full_name: 'Platform Administrator',
+    role: 'platform_admin',
+    avatar_url: null,
+    is_active: true,
+    last_login_at: new Date().toISOString(),
+    metadata: {},
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+};
 
 // ── Context shape ─────────────────────────────────────────────
 
@@ -50,40 +110,42 @@ const AppContext = createContext<AppContextValue | undefined>(undefined);
 export function AppProvider({ children }: { children: ReactNode }) {
   const { user: authUser } = useAuth();
 
-  // authUser is guaranteed non-null here because AppProvider is only
-  // rendered inside the authenticated branch of App.tsx.
   const [activeRole, setActiveRole] = useState<UserRole>(
     authUser?.role ?? 'trainee'
   );
-  const [activeUser, setActiveUser] = useState<User>(authUser as User);
+  const [activeUser, setActiveUser] = useState<User>(
+    authUser ?? DEMO_PERSONA_USERS.trainee
+  );
 
   // ── Role switching (demo only) ────────────────────────────────
 
   const switchRole = useCallback(async (role: UserRole) => {
     if (!DEMO_MODE) return;
 
-    // In demo mode, look up a user with that role in the same institute.
-    const instituteId = authUser?.institute_id;
-    if (!instituteId) return;
+    const instituteId = activeUser?.institute_id || authUser?.institute_id || '00000000-0000-0000-0000-000000000001';
 
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('institute_id', instituteId)
-      .eq('role', role)
-      .eq('is_active', true)
-      .limit(1)
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('institute_id', instituteId)
+        .eq('role', role)
+        .eq('is_active', true)
+        .limit(1)
+        .single();
 
-    if (error || !data) {
-      // Fall back to authUser if no user with that role found
-      console.warn(`[demo] No ${role} found in institute ${instituteId}:`, error?.message);
+      if (!error && data) {
+        setActiveRole(role);
+        setActiveUser(data as User);
+      } else {
+        setActiveRole(role);
+        setActiveUser(DEMO_PERSONA_USERS[role] ?? authUser ?? DEMO_PERSONA_USERS.trainee);
+      }
+    } catch {
       setActiveRole(role);
-      return;
+      setActiveUser(DEMO_PERSONA_USERS[role] ?? authUser ?? DEMO_PERSONA_USERS.trainee);
     }
-    setActiveRole(role);
-    setActiveUser(data as User);
-  }, [authUser]);
+  }, [authUser, activeUser]);
 
   return (
     <AppContext.Provider
