@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { PoseCanvas, type LivePoint } from './pose-canvas';
 import { poseDetector } from '@/lib/pose/pose-detector';
-import { evaluateSubmissionWithLandmarks } from '@/lib/scoring/rubric-engine';
+import { evaluateSubmissionServer, evaluateSubmissionWithLandmarks } from '@/lib/scoring/rubric-engine';
 import { generateFullFeedback } from '@/lib/llm/feedback-generator';
 import { useApp } from '@/context/app-context';
 import { logAudit } from '@/lib/supabase/audit';
@@ -306,61 +306,149 @@ export function VideoCapture({ onBack, onComplete }: VideoCaptureProps) {
     }, 350);
   };
 
+  const [pipelineError, setPipelineError] = useState<string | null>(null);
+
   const executeScoringEngine = async (landmarksSeq: PoseLandmark[]) => {
-    setProcessingMsg('Executing server-side deterministic DTW scoring engine…');
-    setProcessingProgress(85);
+    setPipelineError(null);
+    setProcessingMsg('Fetching published trade rubric configuration…');
+    setProcessingProgress(80);
 
-    // 1. Fetch CPR rubric from DB
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: rubricsData } = await (db as any).from('rubrics').select('*').limit(1);
-    const rubricConfig = rubricsData?.[0]?.config;
+    // 1. Fetch rubric scoped to active user's institute_id
+    const { data: rubricsData, error: rubricError } = await (db as any)
+      .from('rubrics')
+      .select('*')
+      .eq('institute_id', activeUser.institute_id)
+      .eq('is_published', true)
+      .limit(1);
 
-    if (!rubricConfig) {
-      setProcessingMsg('Error: CPR rubric config not found. Contact your administrator.');
+    const rubricRow = rubricsData?.[0];
+    const rubricConfig = rubricRow?.config;
+
+    if (rubricError || !rubricConfig || !rubricRow) {
+      const msg = `Failed to load rubric configuration: ${rubricError?.message || 'No published rubric found for institute'}`;
+      setPipelineError(msg);
+      setProcessingMsg(msg);
       return;
     }
 
-    const submissionId = `sub-cpr-${Date.now()}`;
+    setProcessingMsg('Executing server-side deterministic DTW scoring engine…');
+    setProcessingProgress(85);
 
-    // 2. DETERMINISTIC SCORING — Evaluates real landmark sequence vs reference
-    const evalResult = evaluateSubmissionWithLandmarks(submissionId, rubricConfig, landmarksSeq);
+    const submissionId = `sub-${Date.now()}`;
+
+    // 2. DETERMINISTIC SCORING — Evaluates real landmark sequence (Edge function source of truth with fallback)
+    const evalResult = await evaluateSubmissionServer(submissionId, rubricConfig, landmarksSeq);
 
     setProcessingMsg('Generating AI coaching feedback narrative…');
-    setProcessingProgress(95);
+    setProcessingProgress(92);
 
     // 3. GENERATIVE FEEDBACK — Claude API narrative with fail-safe fallback
     const feedback = await generateFullFeedback(evalResult.deltas);
 
-    // 4. Store extracted landmark sequence in Supabase / DB matching PoseLandmarkSet
-    const landmarkSet: PoseLandmarkSet = {
-      id: `pls-${Date.now()}`,
-      institute_id: activeUser.institute_id,
-      submission_id: submissionId,
-      frame_count: landmarksSeq.length > 0 ? landmarksSeq.length : 150,
-      landmarks: landmarksSeq,
-      confidence_score: 0.94,
-      source: 'ai',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+    setProcessingMsg('Persisting submission, scores, and feedback to Supabase database…');
+    setProcessingProgress(96);
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (db as any).from('pose_landmark_sets').insert(landmarkSet);
-    } catch (e) {
-      console.warn('[executeScoringEngine] store landmark set notice:', e);
+      // A. Insert Submissions Row
+      const submissionRow = {
+        id: submissionId,
+        institute_id: activeUser.institute_id,
+        trainee_id: activeUser.id,
+        trade_id: rubricRow.trade_id,
+        rubric_id: rubricRow.id,
+        status: 'ai_processed',
+        video_url: 'blob:live-capture',
+        thumbnail_url: '',
+        duration_seconds: Math.max(1, recordingTime || 10),
+        submitted_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error: subErr } = await (db as any).from('submissions').insert(submissionRow);
+      if (subErr) throw new Error(`Submission record creation failed: ${subErr.message}`);
+
+      // B. Insert Scores Rows (one per criterion)
+      const scoreRows = evalResult.deltas.map((d) => ({
+        id: `score-${Date.now()}-${d.criterionId}`,
+        institute_id: activeUser.institute_id,
+        submission_id: submissionId,
+        rubric_criterion_id: d.criterionId,
+        score: d.score,
+        max_score: 100,
+        weight: d.weight,
+        source: evalResult.isOfflineScore ? 'ai-local' : 'ai',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }));
+
+      const { error: scoreErr } = await (db as any).from('scores').insert(scoreRows);
+      if (scoreErr) throw new Error(`Score records creation failed: ${scoreErr.message}`);
+
+      // C. Insert Feedback Row
+      const feedbackRow = {
+        id: `fb-${Date.now()}`,
+        institute_id: activeUser.institute_id,
+        submission_id: submissionId,
+        author_id: activeUser.id,
+        author_role: activeUser.role,
+        body: JSON.stringify(feedback),
+        is_ai_generated: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error: fbErr } = await (db as any).from('feedback').insert(feedbackRow);
+      if (fbErr) throw new Error(`Feedback record creation failed: ${fbErr.message}`);
+
+      // D. Store Extracted Landmark Sequence (pose_landmark_sets)
+      const landmarkSet: PoseLandmarkSet = {
+        id: `pls-${Date.now()}`,
+        institute_id: activeUser.institute_id,
+        submission_id: submissionId,
+        frame_count: landmarksSeq.length > 0 ? landmarksSeq.length : 150,
+        landmarks: landmarksSeq,
+        confidence_score: 0.94,
+        source: 'ai',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error: plsErr } = await (db as any).from('pose_landmark_sets').insert(landmarkSet);
+      if (plsErr) console.warn('[executeScoringEngine] store landmark set notice:', plsErr.message);
+
+      // Audit Log entry
+      await logAudit({
+        institute_id: activeUser.institute_id,
+        actor_id: activeUser.id,
+        actor_role: activeUser.role,
+        action: 'submission.submitted',
+        entity_type: 'submission',
+        entity_id: submissionId,
+        metadata: {
+          overall_score: evalResult.overallScore,
+          trade_id: rubricRow.trade_id,
+          is_offline_score: evalResult.isOfflineScore ?? false,
+        },
+        ip_address: null,
+      });
+
+      setResults({
+        rubricResult: evalResult,
+        feedback,
+        landmarkCount: landmarksSeq.length > 0 ? landmarksSeq.length : 150,
+        landmarkSet,
+        submissionId,
+      });
+
+      setProcessingProgress(100);
+      setState('results');
+    } catch (err: any) {
+      console.error('[executeScoringEngine] Database persistence error:', err);
+      const errMsg = err?.message || 'Database insert failed. Please retry.';
+      setPipelineError(errMsg);
+      setProcessingMsg(`Error: ${errMsg}`);
     }
-
-    setResults({
-      rubricResult: evalResult,
-      feedback,
-      landmarkCount: landmarksSeq.length > 0 ? landmarksSeq.length : 150,
-      landmarkSet,
-      submissionId,
-    });
-
-    setProcessingProgress(100);
-    setState('results');
   };
 
   const handleStopRecording = () => {
@@ -527,14 +615,41 @@ export function VideoCapture({ onBack, onComplete }: VideoCaptureProps) {
         {/* Processing Overlay */}
         {state === 'processing' && (
           <div className="absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center p-8 text-center text-white backdrop-blur-md z-20">
-            <div className="relative mb-5">
-              <Loader2 className="h-12 w-12 animate-spin text-emerald-400" />
-              <Zap className="absolute inset-0 m-auto h-5 w-5 text-emerald-300" />
-            </div>
-            <p className="text-lg font-bold mb-1">BlazePose & DTW Pipeline Active</p>
-            <p className="text-xs text-slate-300 mb-6 min-h-[1.25rem] font-mono">{processingMsg}</p>
-            <Progress value={processingProgress} className="w-full max-w-md h-2 mb-2 bg-slate-800" />
-            <p className="text-xs text-slate-400 font-mono">{Math.round(processingProgress)}% complete</p>
+            {pipelineError ? (
+              <div className="flex flex-col items-center gap-3">
+                <AlertCircle className="h-12 w-12 text-destructive animate-bounce" />
+                <p className="text-lg font-bold text-destructive">Processing Failed</p>
+                <p className="text-xs text-slate-300 max-w-md font-mono">{pipelineError}</p>
+                <div className="flex gap-2 mt-2">
+                  <Button
+                    size="sm"
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold gap-1.5"
+                    onClick={() => executeScoringEngine(extractedLandmarksRef.current)}
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" /> Retry Processing
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-slate-300 border-slate-700 hover:bg-slate-800"
+                    onClick={handleRetake}
+                  >
+                    Cancel & Retake
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="relative mb-5">
+                  <Loader2 className="h-12 w-12 animate-spin text-emerald-400" />
+                  <Zap className="absolute inset-0 m-auto h-5 w-5 text-emerald-300" />
+                </div>
+                <p className="text-lg font-bold mb-1">BlazePose & DTW Pipeline Active</p>
+                <p className="text-xs text-slate-300 mb-6 min-h-[1.25rem] font-mono">{processingMsg}</p>
+                <Progress value={processingProgress} className="w-full max-w-md h-2 mb-2 bg-slate-800" />
+                <p className="text-xs text-slate-400 font-mono">{Math.round(processingProgress)}% complete</p>
+              </>
+            )}
           </div>
         )}
       </Card>
@@ -648,6 +763,11 @@ function ResultsPanel({
         <Badge variant="outline" className="ml-auto text-[10px] font-mono bg-emerald-500/10 text-emerald-500 border-emerald-500/30">
           {landmarkCount} BlazePose Frames
         </Badge>
+        {rubricResult.isOfflineScore && (
+          <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-600 border-amber-500/30">
+            ⚠ Offline / Unverified Score
+          </Badge>
+        )}
         {feedback.anyFallback && (
           <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-600 border-amber-500/30">
             ⚡ Partial Fallback Active

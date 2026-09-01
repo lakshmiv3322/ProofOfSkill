@@ -226,7 +226,10 @@ export function calculateRealDTW(
   const rateVarianceBpm = +(kinematics.estimatedBpm - 110).toFixed(1);
   const depthVarianceCm = +(kinematics.estimatedDepthCm - 5.5).toFixed(2);
   const releaseVariancePct = +kinematics.recoilIncompletePct.toFixed(1);
-  const postureVarianceScore = +(kinematics.postureAngleDeviationDeg * 1.2).toFixed(1);
+
+  // Incorporate raw DTW alignment distance into posture variance score
+  const blendedPostureDev = kinematics.postureAngleDeviationDeg * 0.6 + (rawDtwDistance * 100) * 0.4;
+  const postureVarianceScore = +(blendedPostureDev * 1.2).toFixed(1);
 
   return {
     rateVarianceBpm,

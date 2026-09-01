@@ -6,7 +6,6 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { QRCodeSVG } from '@/components/common/qr-code';
 import { supabase } from '@/lib/supabase/client';
-import { mockClient } from '@/lib/mock/client';
 import { downloadCertificatePDF, computeVerificationHash } from '@/lib/certificates/pdf-generator';
 import type { Certificate, User, Trade, Rubric, Institute } from '@/types/database';
 import {
@@ -113,39 +112,39 @@ export function PublicVerifyPage({
         console.info('[Verify] Supabase RPC lookup notice:', e);
       }
 
-      // 2. Fallback to mock Client / Local Store
-      const { data: certs } = mockClient.from('certificates').select({
-        bypassTenant: true,
-        filter: (c) => c.verification_code === code || c.id === code,
-      });
+      // 2. Direct Supabase Table Select Fallback
+      try {
+        const { data: certs } = await (supabase as any)
+          .from('certificates')
+          .select('*, users!trainee_id(full_name), trades(name), institutes(name)')
+          .or(`verification_code.eq.${code},id.eq.${code}`)
+          .limit(1);
 
-      if (certs && certs.length > 0) {
-        const cert = certs[0];
-        const { data: users } = mockClient.from('users').select({ bypassTenant: true, filter: (u) => u.id === cert.trainee_id });
-        const { data: trades } = mockClient.from('trades').select({ bypassTenant: true, filter: (t) => t.id === cert.trade_id });
-        const { data: institutes } = mockClient.from('institutes').select({ bypassTenant: true, filter: (i) => i.id === cert.institute_id });
-        const { data: rubrics } = mockClient.from('rubrics').select({ bypassTenant: true, filter: (r) => r.trade_id === cert.trade_id });
+        if (certs && certs.length > 0) {
+          const cert = certs[0];
+          const hash = await computeVerificationHash({
+            certificateId: cert.id,
+            submissionId: cert.submission_id,
+            traineeId: cert.trainee_id,
+            score: Number(cert.overall_score),
+            issuedAt: cert.issued_at,
+          });
+          setLedgerHash(hash);
 
-        const hash = await computeVerificationHash({
-          certificateId: cert.id,
-          submissionId: cert.submission_id,
-          traineeId: cert.trainee_id,
-          score: Number(cert.overall_score),
-          issuedAt: cert.issued_at,
-        });
-        setLedgerHash(hash);
-
-        setCertData({
-          certificate: cert,
-          trainee: users[0] || null,
-          assessor: null,
-          trade: trades[0] || null,
-          rubric: rubrics[0] || null,
-          institute: institutes[0] || null,
-          trainee_name: users[0]?.full_name || 'Alex Mercer',
-          trade_name: trades[0]?.name || 'CPR / First-Aid Chest Compression',
-          institute_name: institutes[0]?.name || 'Apex Vocational Institute',
-        });
+          setCertData({
+            certificate: cert,
+            trainee: null,
+            assessor: null,
+            trade: null,
+            rubric: null,
+            institute: null,
+            trainee_name: cert.users?.full_name || 'Verified Candidate',
+            trade_name: cert.trades?.name || 'CPR / First-Aid Chest Compression',
+            institute_name: cert.institutes?.name || 'Apex Vocational Institute',
+          });
+        }
+      } catch (e) {
+        console.info('[Verify] Direct table select notice:', e);
       }
 
       setIsLoading(false);

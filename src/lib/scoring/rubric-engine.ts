@@ -33,6 +33,8 @@ export interface RubricResult {
     recoilVariancePct: number;
     postureVarianceScore: number;
   };
+  /** Indicates whether the score was computed via client fallback (true) or verified server Edge Function (false). */
+  isOfflineScore?: boolean;
 }
 
 // ── Local deterministic engine (guarantees identical math) ────
@@ -156,11 +158,13 @@ export function evaluateSubmissionWithLandmarks(
     criteriaScores,
     deltas,
     metrics: { actualBpm, actualDepthCm, recoilVariancePct, postureVarianceScore },
+    isOfflineScore: true,
   };
 }
 
 /**
  * Server-side Edge Function invoker with local deterministic fallback.
+ * Edge Function is the source of truth for tamper-resistant certification scores.
  */
 export async function evaluateSubmissionServer(
   submissionId: string,
@@ -173,13 +177,13 @@ export async function evaluateSubmissionServer(
     });
 
     if (!error && data && data.overallScore !== undefined) {
-      return data as RubricResult;
+      return { ...(data as RubricResult), isOfflineScore: false };
     }
   } catch (err) {
     console.info('[RubricEngine] Edge Function score-submission falling back to local computation:', err);
   }
 
-  // Local fallback (identical deterministic math)
+  // Local fallback (flagged as unverified/offline score)
   return evaluateSubmissionWithLandmarks(submissionId, rubricConfig, landmarks);
 }
 
