@@ -10,9 +10,9 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
-        display: ['Space Grotesk', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'monospace'],
+        headline: ['Fraunces', 'serif'],
+        sans: ['IBM Plex Sans', 'system-ui', '-apple-system', 'sans-serif'],
+        mono: ['IBM Plex Mono', 'monospace'],
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -53,6 +53,14 @@ export default {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
+        // Dedicated custom design tokens
+        basalt: '#090d15',
+        steel: '#121927',
+        hairline: '#202c42',
+        laser: '#00f0ff',
+        brass: '#c89b3c',
+        porcelain: '#f1f5fb',
+        slateText: '#8494ab',
         chart: {
           1: 'hsl(var(--chart-1))',
           2: 'hsl(var(--chart-2))',
@@ -70,20 +78,15 @@ export default {
           from: { height: 'var(--radix-accordion-content-height)' },
           to: { height: '0' },
         },
-        'pulse-glow': {
-          '0%, 100%': { opacity: '0.6', transform: 'scale(1)' },
-          '50%': { opacity: '1', transform: 'scale(1.05)' },
-        },
-        'scanline': {
-          '0%': { transform: 'translateY(-100%)' },
-          '100%': { transform: 'translateY(1000%)' },
+        'hero-pulse': {
+          '0%, 100%': { opacity: '0.8' },
+          '50%': { opacity: '1' },
         },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
-        'pulse-glow': 'pulse-glow 2.5s infinite ease-in-out',
-        'scanline': 'scanline 8s linear infinite',
+        'hero-pulse': 'hero-pulse 3s ease-in-out infinite',
       },
     },
   },

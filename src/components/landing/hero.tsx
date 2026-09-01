@@ -1,8 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
-import { PoseCanvas } from '@/components/trainee/pose-canvas';
 import {
   ShieldCheck,
   Video,
@@ -10,8 +7,8 @@ import {
   Play,
   CheckCircle2,
   Lock,
-  Sparkles,
   Zap,
+  Sliders,
 } from 'lucide-react';
 
 interface HeroProps {
@@ -20,204 +17,326 @@ interface HeroProps {
 
 export function Hero({ onAuthClick }: HeroProps) {
   const [isPlaying, setIsPlaying] = useState(true);
-  const [simulatedBpm, setSimulatedBpm] = useState(110);
-  const [simulatedDepth, setSimulatedDepth] = useState(5.4);
-  const [simulatedConfidence, setSimulatedConfidence] = useState(98.4);
+  const [traineeBpm, setTraineeBpm] = useState(108.4);
+  const [traineeDepth, setTraineeDepth] = useState(5.4);
+  const [armAngle, setArmAngle] = useState(178.2);
+  const [dtwAlignment, setDtwAlignment] = useState(98.4);
 
-  // Subtle telemetry pulse
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Optical comparator dual-skeleton animation loop
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let animId: number;
+    let startTime: number | null = null;
+    const CPR_PERIOD_MS = 545; // ~110 BPM
+
+    const render = (time: number) => {
+      if (!startTime) startTime = time;
+      const elapsed = time - startTime;
+
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Split viewport: Left = Trainee (Laser Cyan), Right = Reference (Gilt Brass)
+      const halfW = w / 2;
+
+      // Divider line
+      ctx.strokeStyle = '#202c42';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(halfW, 0);
+      ctx.lineTo(halfW, h);
+      ctx.stroke();
+
+      const phase = isPlaying ? (elapsed % CPR_PERIOD_MS) / CPR_PERIOD_MS : 0.2;
+      const compress = Math.max(0, Math.sin(phase * Math.PI));
+
+      // Draw Trainee Skeleton (Left, Laser Cyan #00f0ff)
+      drawComparatorSkeleton(
+        ctx,
+        halfW * 0.5,
+        h * 0.18,
+        halfW * 0.7,
+        h * 0.65,
+        compress * 0.95,
+        '#00f0ff',
+        'rgba(0, 240, 255, 0.9)',
+        'rgba(0, 240, 255, 0.25)',
+        'TRAINEE: LIVE OPTICAL STREAM'
+      );
+
+      // Draw Reference Exemplar Skeleton (Right, Gilt Brass #c89b3c)
+      drawComparatorSkeleton(
+        ctx,
+        halfW + halfW * 0.5,
+        h * 0.18,
+        halfW * 0.7,
+        h * 0.65,
+        compress,
+        '#c89b3c',
+        'rgba(200, 155, 60, 0.9)',
+        'rgba(200, 155, 60, 0.25)',
+        'CERTIFIED EXEMPLAR: ref-002'
+      );
+
+      animId = requestAnimationFrame(render);
+    };
+
+    animId = requestAnimationFrame(render);
+    return () => cancelAnimationFrame(animId);
+  }, [isPlaying]);
+
+  // Telemetry fluctuation
   useEffect(() => {
     if (!isPlaying) return;
     const interval = setInterval(() => {
-      setSimulatedBpm(108 + Math.floor(Math.random() * 5));
-      setSimulatedDepth(+(5.3 + Math.random() * 0.3).toFixed(1));
-      setSimulatedConfidence(+(98.2 + Math.random() * 0.6).toFixed(1));
-    }, 1200);
+      setTraineeBpm(+(107.5 + Math.random() * 2.5).toFixed(1));
+      setTraineeDepth(+(5.3 + Math.random() * 0.25).toFixed(1));
+      setArmAngle(+(177.5 + Math.random() * 1.5).toFixed(1));
+      setDtwAlignment(+(98.1 + Math.random() * 0.6).toFixed(1));
+    }, 1400);
     return () => clearInterval(interval);
   }, [isPlaying]);
 
   return (
-    <section className="relative overflow-hidden pt-28 pb-20 sm:pt-36 sm:pb-28">
-      {/* HUD Background grid & glowing telemetry backdrop */}
-      <div className="absolute inset-0 bg-grid [mask-image:radial-gradient(ellipse_at_top,black_40%,transparent_75%)] pointer-events-none" />
-      <div className="absolute left-1/2 top-10 -z-10 h-[500px] w-[700px] -translate-x-1/2 rounded-full bg-emerald-500/10 blur-[140px] pointer-events-none" />
-      <div className="absolute right-1/4 top-40 -z-10 h-[300px] w-[400px] rounded-full bg-cyan-500/10 blur-[100px] pointer-events-none" />
+    <section className="relative overflow-hidden pt-24 pb-20 sm:pt-32 sm:pb-28">
+      {/* Precision grid background */}
+      <div className="absolute inset-0 bg-grid opacity-30 pointer-events-none" />
 
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid lg:grid-cols-12 gap-12 items-center">
+        
+        {/* Editorial Heading Section */}
+        <div className="max-w-3xl mb-12">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300 font-mono text-xs mb-5">
+            <span className="h-2 w-2 rounded-full bg-laser animate-ping" />
+            <span>Standard: AHA-CPR-2026-v2</span>
+            <span className="text-slate-600">|</span>
+            <span className="text-brass">Registry Protocol: POS-v2</span>
+          </div>
+
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-headline font-bold text-porcelain tracking-tight leading-[1.08]">
+            Biometric proof of practical skill. Validated against reference standards.
+          </h1>
+
+          <p className="mt-5 text-base sm:text-lg text-slateText leading-relaxed font-sans max-w-2xl">
+            ProofOfSkill watches physical human motion with client-side BlazePose, runs deterministic Dynamic Time Warping against certified exemplar clips, and issues verifiable credentials.
+          </p>
+
+          <div className="mt-8 flex flex-wrap items-center gap-4">
+            <Button
+              size="lg"
+              className="h-11 px-6 text-xs font-mono font-semibold bg-laser text-basalt hover:bg-cyan-300 border border-laser/40 shadow-sm"
+              onClick={() => onAuthClick('signup')}
+            >
+              <Zap className="mr-2 h-4 w-4" />
+              Launch Live Assessment
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              className="h-11 px-5 text-xs font-mono border-hairline bg-steel hover:bg-slate-800 text-slate-200"
+              asChild
+            >
+              <a href="#demo-report">
+                <Sliders className="mr-2 h-4 w-4 text-brass" />
+                Inspect Calibration Ledger
+              </a>
+            </Button>
+          </div>
+        </div>
+
+        {/* ── THE SIGNATURE HERO MOMENT: Dual-Skeleton Optical Comparator ── */}
+        <div className="rounded-md border border-hairline bg-steel overflow-hidden shadow-2xl">
           
-          {/* Left Column: Heading & Value Prop */}
-          <div className="lg:col-span-6 text-center lg:text-left space-y-6">
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1 text-xs text-emerald-400 font-mono">
-              <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
-              <span>Deterministic Kinematics · Human Supervised</span>
-            </div>
-
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.1]">
-              Biometric proof of skill.{' '}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400">
-                Mathematical precision.
+          {/* Terminal Instrument Header */}
+          <div className="flex flex-wrap items-center justify-between px-4 py-2.5 bg-slate-950 border-b border-hairline text-xs font-mono text-slateText">
+            <div className="flex items-center gap-3">
+              <span className="text-porcelain font-semibold flex items-center gap-1.5">
+                <Activity className="h-3.5 w-3.5 text-laser" />
+                OPTICAL DUAL-COMPARATOR TERMINAL
               </span>
-            </h1>
-
-            <p className="text-base sm:text-lg text-slate-300 max-w-xl mx-auto lg:mx-0 leading-relaxed font-normal">
-              Extract real body landmarks with client-side BlazePose, compare against gold-standard exemplar clips via server-side Dynamic Time Warping, and issue verifiable credentials.
-            </p>
-
-            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3.5 pt-2">
-              <Button
-                size="lg"
-                className="h-12 px-7 text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20"
-                onClick={() => onAuthClick('signup')}
-              >
-                <Zap className="mr-2 h-4 w-4" />
-                Launch Live Assessment
-              </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                className="h-12 px-6 text-sm border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-200"
-                asChild
-              >
-                <a href="#demo-report">
-                  <Play className="mr-2 h-4 w-4 text-emerald-400" />
-                  View Certified Report
-                </a>
-              </Button>
+              <span className="text-slate-600 hidden sm:inline">/</span>
+              <span className="text-slate-400 hidden sm:inline">FPS: 30.0 · 33 Keypoints</span>
             </div>
 
-            {/* Structured Key Indicators */}
-            <div className="pt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-slate-800/80">
-              <div className="p-2.5 rounded-lg border border-slate-800/80 bg-slate-900/40 text-left">
-                <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-mono mb-0.5">
-                  <Activity className="h-3.5 w-3.5" />
-                  33 Joints
-                </div>
-                <p className="text-[11px] text-slate-400">BlazePose Tracking</p>
-              </div>
-
-              <div className="p-2.5 rounded-lg border border-slate-800/80 bg-slate-900/40 text-left">
-                <div className="flex items-center gap-1.5 text-cyan-400 text-xs font-mono mb-0.5">
-                  <Zap className="h-3.5 w-3.5" />
-                  Fast DTW
-                </div>
-                <p className="text-[11px] text-slate-400">Mathematical Rubric</p>
-              </div>
-
-              <div className="p-2.5 rounded-lg border border-slate-800/80 bg-slate-900/40 text-left">
-                <div className="flex items-center gap-1.5 text-amber-400 text-xs font-mono mb-0.5">
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  SHA-256
-                </div>
-                <p className="text-[11px] text-slate-400">Audit Proof Ledger</p>
-              </div>
-
-              <div className="p-2.5 rounded-lg border border-slate-800/80 bg-slate-900/40 text-left">
-                <div className="flex items-center gap-1.5 text-slate-300 text-xs font-mono mb-0.5">
-                  <Lock className="h-3.5 w-3.5" />
-                  Zero Video
-                </div>
-                <p className="text-[11px] text-slate-400">Privacy Compliant</p>
-              </div>
+            <div className="flex items-center gap-3">
+              <span className="text-laser font-bold">DTW Alignment: {dtwAlignment}%</span>
+              <span className="text-slate-600">|</span>
+              <span className="text-brass font-bold">Tolerance: ±5%</span>
             </div>
           </div>
 
-          {/* Right Column: Interactive Hero Skeleton HUD Moment */}
-          <div className="lg:col-span-6 relative">
-            <div className="relative rounded-2xl border-2 border-emerald-500/30 bg-slate-950 p-2 shadow-2xl shadow-emerald-950/40 overflow-hidden">
-              
-              {/* Header HUD Status Bar */}
-              <div className="flex items-center justify-between px-3 py-2 bg-slate-900/80 rounded-xl border border-slate-800 mb-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-                  <span className="font-mono text-xs font-bold text-emerald-400">
-                    BLAZEPOSE KINEMATIC STREAM
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 font-mono text-[11px] text-slate-400">
-                  <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/10 text-[10px]">
-                    Standard: AHA-CPR-2026
-                  </Badge>
-                </div>
-              </div>
+          {/* Optical Canvas Viewport */}
+          <div className="relative aspect-[16/9] sm:aspect-[21/9] w-full bg-basalt flex items-center justify-center">
+            <canvas
+              ref={canvasRef}
+              className="absolute inset-0 w-full h-full pointer-events-none"
+            />
 
-              {/* Viewport with real BlazePose Skeleton rendering */}
-              <div className="relative aspect-[4/3] rounded-xl bg-slate-950 border border-slate-800/80 overflow-hidden flex items-center justify-center">
-                
-                {/* Background grid scanline */}
-                <div className="absolute inset-0 bg-grid opacity-30 pointer-events-none" />
-                
-                {/* Real PoseCanvas component running */}
-                <PoseCanvas isRecording={isPlaying} showHUD={false} />
+            {/* Left Telemetry Box (Trainee Laser Cyan) */}
+            <div className="absolute bottom-4 left-4 p-3 rounded bg-slate-950/85 border border-hairline text-left font-mono text-[11px] space-y-1 backdrop-blur-sm z-10">
+              <div className="text-laser font-bold mb-1">TRAINEE MEASUREMENT</div>
+              <div className="text-slateText">Rate: <span className="text-porcelain font-semibold">{traineeBpm} BPM</span></div>
+              <div className="text-slateText">Depth: <span className="text-porcelain font-semibold">{traineeDepth} cm</span></div>
+              <div className="text-slateText">Lock Angle: <span className="text-porcelain font-semibold">{armAngle}°</span></div>
+            </div>
 
-                {/* Telemetry HUD overlays */}
-                <div className="absolute top-3 left-3 p-2.5 rounded-lg border border-slate-800 bg-slate-900/85 backdrop-blur-md text-left z-20 space-y-1">
-                  <div className="flex items-center justify-between gap-3 text-[11px] font-mono">
-                    <span className="text-slate-400">Rate Target:</span>
-                    <span className="text-emerald-400 font-bold">{simulatedBpm} BPM</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 text-[11px] font-mono">
-                    <span className="text-slate-400">Depth Target:</span>
-                    <span className="text-cyan-400 font-bold">{simulatedDepth} cm</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 text-[11px] font-mono">
-                    <span className="text-slate-400">DTW Alignment:</span>
-                    <span className="text-emerald-400 font-bold">{simulatedConfidence}%</span>
-                  </div>
-                </div>
+            {/* Right Telemetry Box (Reference Gilt Brass) */}
+            <div className="absolute bottom-4 right-4 p-3 rounded bg-slate-950/85 border border-hairline text-right font-mono text-[11px] space-y-1 backdrop-blur-sm z-10">
+              <div className="text-brass font-bold mb-1">CERTIFIED STANDARD</div>
+              <div className="text-slateText">Target Rate: <span className="text-porcelain font-semibold">100–120 BPM</span></div>
+              <div className="text-slateText">Target Depth: <span className="text-porcelain font-semibold">5.0–6.0 cm</span></div>
+              <div className="text-slateText">Target Lock: <span className="text-porcelain font-semibold">180° Vertical</span></div>
+            </div>
 
-                {/* Right Top Status Box */}
-                <div className="absolute top-3 right-3 p-2.5 rounded-lg border border-emerald-500/30 bg-emerald-950/60 backdrop-blur-md text-right z-20">
-                  <div className="flex items-center gap-1.5 justify-end text-xs font-mono text-emerald-300 font-semibold">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                    Optimal Form
-                  </div>
-                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">Arms locked (178°)</p>
-                </div>
+            {/* Center Play/Pause Toggle */}
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+              <button
+                onClick={() => setIsPlaying(!isPlaying)}
+                className="px-3 py-1 rounded bg-slate-900/90 border border-hairline text-slate-300 hover:text-white text-xs font-mono transition-colors flex items-center gap-1.5 backdrop-blur-sm"
+              >
+                <Play className="h-3 w-3 text-laser" />
+                <span>{isPlaying ? 'Pause Kinematics' : 'Resume Kinematics'}</span>
+              </button>
+            </div>
+          </div>
 
-                {/* Bottom Waveform & Interactive Playback Toggle */}
-                <div className="absolute bottom-3 inset-x-3 p-2.5 rounded-lg border border-slate-800 bg-slate-900/90 backdrop-blur-md flex items-center justify-between z-20">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setIsPlaying(!isPlaying)}
-                      className="p-1.5 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 transition-colors"
-                      title={isPlaying ? 'Pause simulation' : 'Play simulation'}
-                    >
-                      <Activity className="h-4 w-4" />
-                    </button>
-                    <div>
-                      <p className="text-xs font-semibold text-white font-mono">Dynamic Time Warping (DTW)</p>
-                      <p className="text-[10px] text-slate-400 font-mono">Comparing vs Exemplar ref-002</p>
-                    </div>
-                  </div>
+          {/* Terminal Waveform & Verification Footer */}
+          <div className="px-4 py-3 bg-slate-950 border-t border-hairline grid sm:grid-cols-3 gap-4 items-center text-xs font-mono">
+            <div className="text-slateText flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-brass shrink-0" />
+              <span>Double-Signature Audit Protocol Active</span>
+            </div>
 
-                  <div className="flex items-center gap-1">
-                    {[35, 60, 90, 45, 100, 75, 40, 85, 95, 65, 80, 50].map((h, i) => (
-                      <div
-                        key={i}
-                        className="w-1 rounded-full bg-emerald-400 transition-all duration-300"
-                        style={{
-                          height: `${Math.max(6, (h * (isPlaying ? 1 : 0.4)) * 0.22)}px`,
-                          opacity: (i + 1) / 12,
-                        }}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
+            <div className="flex items-center justify-center gap-1">
+              <span className="text-[10px] text-slate-500 mr-1">WAVE:</span>
+              {[20, 55, 90, 45, 100, 70, 30, 85, 95, 60, 75, 40, 80, 60, 95].map((h, i) => (
+                <div
+                  key={i}
+                  className="w-1 rounded-full bg-laser transition-all duration-300"
+                  style={{
+                    height: `${Math.max(4, (h * (isPlaying ? 1 : 0.3)) * 0.18)}px`,
+                    opacity: 0.3 + (i / 15) * 0.7,
+                  }}
+                />
+              ))}
+            </div>
 
-              {/* Bottom Card Footer */}
-              <div className="mt-2 px-3 py-2 rounded-xl bg-slate-900/60 border border-slate-800/80 flex items-center justify-between text-[11px] font-mono text-slate-400">
-                <span className="flex items-center gap-1 text-slate-300">
-                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
-                  POS Ledger Hash: 8f4e3c13...9bd9
-                </span>
-                <span className="text-emerald-400 font-bold">SHA-256 Validated</span>
-              </div>
+            <div className="text-right text-slateText truncate">
+              SHA-256: <span className="text-slate-400">8f4e3c13a0219bd948f2...</span>
             </div>
           </div>
 
         </div>
+
       </div>
     </section>
   );
+}
+
+/**
+ * Draws a clean skeletal wireframe with joint coordinates for the dual optical comparator.
+ */
+function drawComparatorSkeleton(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  baseY: number,
+  width: number,
+  height: number,
+  compress: number,
+  boneColor: string,
+  jointColor: string,
+  glowColor: string,
+  headerLabel: string
+) {
+  const compressY = compress * height * 0.14;
+
+  const pts = {
+    nose:          { x: cx,                 y: baseY },
+    leftEar:       { x: cx - width * 0.12,  y: baseY + height * 0.04 },
+    rightEar:      { x: cx + width * 0.12,  y: baseY + height * 0.04 },
+    neck:          { x: cx,                 y: baseY + height * 0.10 },
+    leftShoulder:  { x: cx - width * 0.28,  y: baseY + height * 0.18 + compressY * 0.6 },
+    rightShoulder: { x: cx + width * 0.28,  y: baseY + height * 0.18 + compressY * 0.6 },
+    leftElbow:     { x: cx - width * 0.16,  y: baseY + height * 0.38 + compressY * 0.8 },
+    rightElbow:    { x: cx + width * 0.16,  y: baseY + height * 0.38 + compressY * 0.8 },
+    leftWrist:     { x: cx - width * 0.05,  y: baseY + height * 0.58 + compressY },
+    rightWrist:    { x: cx + width * 0.05,  y: baseY + height * 0.58 + compressY },
+    hands:         { x: cx,                 y: baseY + height * 0.64 + compressY },
+    leftHip:       { x: cx - width * 0.30,  y: baseY + height * 0.60 },
+    rightHip:      { x: cx + width * 0.30,  y: baseY + height * 0.60 },
+    leftKnee:      { x: cx - width * 0.32,  y: baseY + height * 0.82 },
+    rightKnee:     { x: cx + width * 0.32,  y: baseY + height * 0.82 },
+  };
+
+  const bones: [keyof typeof pts, keyof typeof pts][] = [
+    ['nose', 'neck'],
+    ['nose', 'leftEar'],
+    ['nose', 'rightEar'],
+    ['neck', 'leftShoulder'],
+    ['neck', 'rightShoulder'],
+    ['leftShoulder', 'leftElbow'],
+    ['leftElbow', 'leftWrist'],
+    ['leftWrist', 'hands'],
+    ['rightShoulder', 'rightElbow'],
+    ['rightElbow', 'rightWrist'],
+    ['rightWrist', 'hands'],
+    ['leftShoulder', 'leftHip'],
+    ['rightShoulder', 'rightHip'],
+    ['leftHip', 'rightHip'],
+    ['leftHip', 'leftKnee'],
+    ['rightHip', 'rightKnee'],
+  ];
+
+  ctx.save();
+
+  // Header label on canvas
+  ctx.fillStyle = boneColor;
+  ctx.font = '10px "IBM Plex Mono", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(headerLabel, cx, baseY - 12);
+
+  // Bones
+  ctx.strokeStyle = boneColor;
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.shadowColor = glowColor;
+  ctx.shadowBlur = 8;
+
+  bones.forEach(([a, b]) => {
+    ctx.beginPath();
+    ctx.moveTo(pts[a].x, pts[a].y);
+    ctx.lineTo(pts[b].x, pts[b].y);
+    ctx.stroke();
+  });
+
+  // Joints
+  ctx.fillStyle = jointColor;
+  ctx.shadowBlur = 6;
+  Object.values(pts).forEach((pt) => {
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // Active contact hand point
+  ctx.fillStyle = boneColor;
+  ctx.shadowBlur = 12;
+  ctx.beginPath();
+  ctx.arc(pts.hands.x, pts.hands.y, 6, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
 }
