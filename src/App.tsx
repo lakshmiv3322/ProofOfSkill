@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { Navbar } from '@/components/landing/navbar';
 import { Hero } from '@/components/landing/hero';
@@ -9,8 +9,25 @@ import { Pricing } from '@/components/landing/pricing';
 import { CTA } from '@/components/landing/cta';
 import { Footer } from '@/components/landing/footer';
 import { AuthModal } from '@/components/landing/auth-modal';
-import { Dashboard } from '@/components/app/dashboard';
-import { PublicVerifyPage } from '@/components/verify/public-verify-page';
+import { Loader2 } from 'lucide-react';
+
+const Dashboard = lazy(() =>
+  import('@/components/app/dashboard').then((m) => ({ default: m.Dashboard }))
+);
+const PublicVerifyPage = lazy(() =>
+  import('@/components/verify/public-verify-page').then((m) => ({ default: m.PublicVerifyPage }))
+);
+
+function AppLoadingFallback() {
+  return (
+    <div className="min-h-screen w-full flex items-center justify-center bg-background text-muted-foreground">
+      <div className="flex flex-col items-center gap-3">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-xs font-medium">Loading ProofOfSkill...</p>
+      </div>
+    </div>
+  );
+}
 
 function parseVerifyRoute(): string | null {
   if (typeof window === 'undefined') return null;
@@ -40,7 +57,7 @@ function parseVerifyRoute(): string | null {
 }
 
 function AppContent() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
   const [authTab, setAuthTab] = useState<'signin' | 'signup'>('signin');
   const [verifyCode, setVerifyCode] = useState<string | null>(() => parseVerifyRoute());
@@ -57,6 +74,13 @@ function AppContent() {
       window.removeEventListener('hashchange', handleLocationChange);
     };
   }, []);
+
+  // While the Supabase client is restoring the session from localStorage,
+  // show a neutral loading screen so we don't flash the landing page to
+  // an already-authenticated user.
+  if (isLoading) {
+    return <AppLoadingFallback />;
+  }
 
   const openAuth = (tab: 'signin' | 'signup') => {
     setAuthTab(tab);
@@ -76,15 +100,21 @@ function AppContent() {
   // If a public verification route is active, render the unauthenticated PublicVerifyPage
   if (verifyCode) {
     return (
-      <PublicVerifyPage
-        initialCode={verifyCode}
-        onBack={closeVerify}
-      />
+      <Suspense fallback={<AppLoadingFallback />}>
+        <PublicVerifyPage
+          initialCode={verifyCode}
+          onBack={closeVerify}
+        />
+      </Suspense>
     );
   }
 
   if (isAuthenticated) {
-    return <Dashboard />;
+    return (
+      <Suspense fallback={<AppLoadingFallback />}>
+        <Dashboard />
+      </Suspense>
+    );
   }
 
   return (

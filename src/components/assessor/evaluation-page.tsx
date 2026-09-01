@@ -6,7 +6,8 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { OverrideForm } from './override-form';
-import { mockClient } from '@/lib/mock/client';
+import { useApp } from '@/context/app-context';
+import { logAudit } from '@/lib/supabase/audit';
 import {
   Brain,
   Calendar,
@@ -96,6 +97,7 @@ interface EvaluationPageProps {
 }
 
 export function EvaluationPage({ onBack }: EvaluationPageProps) {
+  const { activeUser } = useApp();
   const [showOverride, setShowOverride] = useState(false);
   const [savedOverrides, setSavedOverrides] = useState<Record<string, number>>({});
 
@@ -293,12 +295,12 @@ export function EvaluationPage({ onBack }: EvaluationPageProps) {
         </Button>
         <Button
           className="ml-auto bg-emerald-600 hover:bg-emerald-500 text-white"
-          onClick={() => {
+          onClick={async () => {
             const verificationCode = `POS-SMAW-2026-0${Math.floor(Math.random() * 899 + 100)}MW`;
-            mockClient.logAudit({
-              institute_id: 'inst-001',
-              actor_id: 'user-002',
-              actor_role: 'assessor',
+            await logAudit({
+              institute_id: activeUser.institute_id,
+              actor_id: activeUser.id,
+              actor_role: activeUser.role,
               action: 'certificate.issued',
               entity_type: 'certificate',
               entity_id: `cert-${Date.now()}`,
@@ -320,7 +322,7 @@ export function EvaluationPage({ onBack }: EvaluationPageProps) {
                   issued_at: new Date().toISOString(),
                 },
               },
-              ip_address: '10.0.4.12',
+              ip_address: null,
             });
             alert(`✓ Certificate Issued Successfully!\nVerification Code: ${verificationCode}\nScore: ${effectiveScore.toFixed(1)}%\n\nAudit log record timestamped.`);
             onBack();
@@ -331,11 +333,11 @@ export function EvaluationPage({ onBack }: EvaluationPageProps) {
         <Button
           variant="outline"
           className="text-destructive hover:text-destructive"
-          onClick={() => {
-            mockClient.logAudit({
-              institute_id: 'inst-001',
-              actor_id: 'user-002',
-              actor_role: 'assessor',
+          onClick={async () => {
+            await logAudit({
+              institute_id: activeUser.institute_id,
+              actor_id: activeUser.id,
+              actor_role: activeUser.role,
               action: 'submission.failed',
               entity_type: 'submission',
               entity_id: 'sub-010',
@@ -346,7 +348,7 @@ export function EvaluationPage({ onBack }: EvaluationPageProps) {
                 state_before: { submission_status: 'under_review' },
                 state_after: { submission_status: 'failed', rejection_reason: 'Assessor determined criteria not fully met.' },
               },
-              ip_address: '10.0.4.12',
+              ip_address: null,
             });
             alert('Submission marked as failed. Audit log updated.');
             onBack();

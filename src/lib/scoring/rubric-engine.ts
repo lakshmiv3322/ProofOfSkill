@@ -1,12 +1,13 @@
 // ─────────────────────────────────────────────────────────────
-// Deterministic Rubric Engine
+// Deterministic Rubric Engine (Server-Side / Client Fallback)
 // ─────────────────────────────────────────────────────────────
 // ARCHITECTURAL RULE: The numeric score is calculated SOLELY by
-// mathematical rubric logic applied to DTW output deltas.
+// mathematical rubric logic applied to real DTW output deltas.
 // LLMs are NEVER allowed to set or modify the score.
 // ─────────────────────────────────────────────────────────────
-import { mockCalculateDTW } from './dtw';
-import type { RubricConfig } from '@/types/database';
+import { calculateRealDTW } from './dtw';
+import type { RubricConfig, PoseLandmark } from '@/types/database';
+import { supabase } from '@/lib/supabase/client';
 
 // ── Public types ──────────────────────────────────────────────
 
@@ -34,15 +35,15 @@ export interface RubricResult {
   };
 }
 
-// ── Main engine ───────────────────────────────────────────────
+// ── Local deterministic engine (guarantees identical math) ────
 
-export function evaluateSubmission(
+export function evaluateSubmissionWithLandmarks(
   submissionId: string,
-  rubricConfig: RubricConfig
+  rubricConfig: RubricConfig,
+  landmarks?: PoseLandmark[]
 ): RubricResult {
-  // 1. Obtain raw mathematical variance from the DTW ML pipeline.
-  //    Each call is seeded from Date.now() so every demo run differs.
-  const dtwResult = mockCalculateDTW(submissionId);
+  // 1. Obtain mathematical variance from the real DTW algorithm
+  const dtwResult = calculateRealDTW(submissionId, landmarks);
 
   // 2. Resolve concrete metric values from the DTW deltas.
   //    Reference values: 110 BPM rate, 5.5 cm depth.
@@ -137,7 +138,6 @@ export function evaluateSubmission(
       }
 
       default:
-        // Generic pass-through for any unrecognised criterion ids.
         score = 80;
         delta = `${criterion.label}: assessed at ${score}/100`;
     }
@@ -157,4 +157,38 @@ export function evaluateSubmission(
     deltas,
     metrics: { actualBpm, actualDepthCm, recoilVariancePct, postureVarianceScore },
   };
+}
+
+/**
+ * Server-side Edge Function invoker with local deterministic fallback.
+ */
+export async function evaluateSubmissionServer(
+  submissionId: string,
+  rubricConfig: RubricConfig,
+  landmarks?: PoseLandmark[]
+): Promise<RubricResult> {
+  try {
+    const { data, error } = await supabase.functions.invoke('score-submission', {
+      body: { submissionId, rubricConfig, landmarks },
+    });
+
+    if (!error && data && data.overallScore !== undefined) {
+      return data as RubricResult;
+    }
+  } catch (err) {
+    console.info('[RubricEngine] Edge Function score-submission falling back to local computation:', err);
+  }
+
+  // Local fallback (identical deterministic math)
+  return evaluateSubmissionWithLandmarks(submissionId, rubricConfig, landmarks);
+}
+
+/**
+ * Legacy synchronous evaluateSubmission helper (backward compatibility)
+ */
+export function evaluateSubmission(
+  submissionId: string,
+  rubricConfig: RubricConfig
+): RubricResult {
+  return evaluateSubmissionWithLandmarks(submissionId, rubricConfig);
 }

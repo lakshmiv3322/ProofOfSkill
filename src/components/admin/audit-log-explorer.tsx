@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { useState, useEffect, useMemo } from 'react';
+import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
 import { useApp } from '@/context/app-context';
 import type { AuditLog, User } from '@/types/database';
 import {
@@ -22,7 +21,6 @@ import {
   Clock,
   User as UserIcon,
   Layers,
-  ArrowRight,
   CheckCircle2,
   AlertTriangle,
   FileEdit,
@@ -89,16 +87,24 @@ const ACTION_CONFIG: Record<
 
 export function AuditLogExplorer() {
   const { db } = useApp();
+  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
 
-  // Load audit logs and users from mock client
-  const logsResult = db.from('audit_log').select({
-    orderBy: 'created_at',
-    order: 'desc',
-  });
-  const usersResult = db.from('users').select({ bypassTenant: true });
+  useEffect(() => {
+    db.from('audit_log')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (data) setLogs(data as AuditLog[]);
+      });
 
-  const logs = (logsResult.data as AuditLog[]) || [];
-  const users = (usersResult.data as User[]) || [];
+    db.from('users')
+      .select('*')
+      .then(({ data }) => {
+        if (data) setUsers(data as User[]);
+      });
+  }, [db]);
+
   const userMap = useMemo(
     () => new Map(users.map((u) => [u.id, u])),
     [users]

@@ -1,3 +1,17 @@
+// ─────────────────────────────────────────────────────────────
+// src/context/app-context.tsx
+// Application-level context backed by real Supabase queries.
+//
+// In production (VITE_DEMO_MODE != "true"):
+//   • activeRole and activeUser come from the signed-in user's
+//     real profile in public.users — no persona switching.
+//
+// In demo mode (VITE_DEMO_MODE=true in .env.local):
+//   • switchRole() lets developers impersonate any persona so
+//     the full role-based UI can be previewed without separate
+//     accounts. The role switcher toolbar is shown.
+// ─────────────────────────────────────────────────────────────
+
 import {
   createContext,
   useContext,
@@ -6,74 +20,80 @@ import {
   type ReactNode,
 } from 'react';
 import type { User, UserRole } from '@/types/database';
-import { mockClient } from '@/lib/mock/client';
+import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/context/auth-context';
 
-// ─────────────────────────────────────────────────────────────
-// AppContext — inner-application state
-// Provides:
-//   • activeRole   — the currently previewed persona role
-//   • activeUser   — the mock user for that role
-//   • switchRole   — dev role-switcher
-//   • db           — singleton mockClient for data access
-// ─────────────────────────────────────────────────────────────
+// ── Demo mode flag ────────────────────────────────────────────
 
-// Canonical demo users for each role (from seed data)
-const ROLE_USER_EMAILS: Record<UserRole, string> = {
-  trainee: 'sarah.trainee@northgate.edu',
-  assessor: 'mike.assessor@northgate.edu',
-  institute_admin: 'admin@northgate.edu',
-  platform_admin: 'platform@proofofskill.com',
-};
+export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
+
+// ── Context shape ─────────────────────────────────────────────
 
 interface AppContextValue {
-  /** The role currently being viewed (may differ from the signed-in user's real role). */
+  /** The role currently being viewed. */
   activeRole: UserRole;
-  /** The mock user object corresponding to `activeRole`. */
+  /** The user object for the active role. */
   activeUser: User;
-  /** Instantly switch the active persona (dev role-switcher). */
-  switchRole: (role: UserRole) => void;
-  /** The mock database client — pre-authenticated to `activeUser`. */
-  db: typeof mockClient;
+  /**
+   * Switch the active persona. Only callable when DEMO_MODE=true.
+   * In production this is a no-op so UI can stay consistent.
+   */
+  switchRole: (role: UserRole) => Promise<void>;
+  /** The typed Supabase client — ready-to-use with RLS applying automatically. */
+  db: typeof supabase;
 }
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
 
+// ── AppProvider ───────────────────────────────────────────────
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const { user: authUser } = useAuth();
 
-  // Determine the initial role from the authenticated user, or fall back to trainee
-  const initialRole: UserRole = authUser?.role ?? 'trainee';
-
-  const [activeRole, setActiveRole] = useState<UserRole>(initialRole);
-
-  // Resolve the demo user for the current role
-  const resolveUser = useCallback((role: UserRole): User => {
-    const email = ROLE_USER_EMAILS[role];
-    // Bypass tenant to find users across all institutes
-    const result = mockClient.from('users').select({
-      bypassTenant: true,
-      filter: (u) => u.email === email,
-    });
-    return result.data[0] as User;
-  }, []);
-
-  const [activeUser, setActiveUser] = useState<User>(() => resolveUser(initialRole));
-
-  const switchRole = useCallback(
-    (role: UserRole) => {
-      const user = resolveUser(role);
-      if (!user) return;
-      // Sign in as that user so the mock client scopes queries correctly
-      mockClient.signIn(user.email);
-      setActiveRole(role);
-      setActiveUser(user);
-    },
-    [resolveUser]
+  // authUser is guaranteed non-null here because AppProvider is only
+  // rendered inside the authenticated branch of App.tsx.
+  const [activeRole, setActiveRole] = useState<UserRole>(
+    authUser?.role ?? 'trainee'
   );
+  const [activeUser, setActiveUser] = useState<User>(authUser as User);
+
+  // ── Role switching (demo only) ────────────────────────────────
+
+  const switchRole = useCallback(async (role: UserRole) => {
+    if (!DEMO_MODE) return;
+
+    // In demo mode, look up a user with that role in the same institute.
+    const instituteId = authUser?.institute_id;
+    if (!instituteId) return;
+
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('institute_id', instituteId)
+      .eq('role', role)
+      .eq('is_active', true)
+      .limit(1)
+      .single();
+
+    if (error || !data) {
+      // Fall back to authUser if no user with that role found
+      console.warn(`[demo] No ${role} found in institute ${instituteId}:`, error?.message);
+      setActiveRole(role);
+      return;
+    }
+    setActiveRole(role);
+    setActiveUser(data as User);
+  }, [authUser]);
 
   return (
-    <AppContext.Provider value={{ activeRole, activeUser, switchRole, db: mockClient }}>
+    <AppContext.Provider
+      value={{
+        activeRole,
+        activeUser,
+        switchRole,
+        db: supabase,
+      }}
+    >
       {children}
     </AppContext.Provider>
   );

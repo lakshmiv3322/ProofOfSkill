@@ -1,59 +1,63 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
+    --background: 220 33% 98%;
     --foreground: 222 47% 11%;
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
-    --primary: 199 89% 48%;
+    --primary: 160 84% 38%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 210 40% 96%;
+    --secondary: 215 25% 93%;
     --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 199 89% 48%;
+    --muted: 215 25% 93%;
+    --muted-foreground: 215 16% 45%;
+    --accent: 188 86% 40%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 199 89% 48%;
-    --radius: 0.625rem;
+    --border: 215 28% 88%;
+    --input: 215 28% 88%;
+    --ring: 160 84% 38%;
+    --radius: 0.5rem;
 
-    --chart-1: 199 89% 48%;
-    --chart-2: 160 84% 39%;
+    --chart-1: 160 84% 38%;
+    --chart-2: 188 86% 40%;
     --chart-3: 38 92% 50%;
     --chart-4: 0 84% 60%;
     --chart-5: 262 83% 58%;
   }
 
   .dark {
-    --background: 222 47% 5%;
-    --foreground: 210 40% 98%;
-    --card: 222 47% 7%;
+    --background: 222 47% 4%;      /* Obsidian #070b12 */
+    --foreground: 210 40% 98%;      /* Porcelain #f8fafc */
+    --card: 222 40% 7%;            /* Surface #0c1322 */
     --card-foreground: 210 40% 98%;
-    --popover: 222 47% 7%;
+    --popover: 222 40% 7%;
     --popover-foreground: 210 40% 98%;
-    --primary: 199 89% 52%;
-    --primary-foreground: 222 47% 5%;
-    --secondary: 217 33% 14%;
+    --primary: 160 84% 45%;         /* Biometric Emerald #10b981 */
+    --primary-foreground: 222 47% 4%;
+    --secondary: 217 33% 12%;       /* Slate #151e2f */
     --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 14%;
+    --muted: 217 33% 12%;
     --muted-foreground: 215 20% 65%;
-    --accent: 199 89% 52%;
-    --accent-foreground: 222 47% 5%;
-    --destructive: 0 63% 31%;
+    --accent: 188 86% 48%;          /* Telemetry Cyan #06b6d4 */
+    --accent-foreground: 222 47% 4%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-    --ring: 199 89% 52%;
+    --border: 217 33% 15%;          /* Fine Slate Line #182338 */
+    --input: 217 33% 15%;
+    --ring: 160 84% 45%;
+
+    --chart-1: 160 84% 45%;
+    --chart-2: 188 86% 48%;
+    --chart-3: 38 92% 50%;
+    --chart-4: 0 72% 51%;
+    --chart-5: 262 83% 58%;
   }
 }
 
@@ -62,10 +66,12 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
-    font-family: 'Inter', system-ui, sans-serif;
+    @apply bg-background text-foreground font-sans;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display tracking-tight;
   }
   html {
     scroll-behavior: smooth;
@@ -78,13 +84,38 @@
   }
   .bg-grid {
     background-image:
-      linear-gradient(to right, hsl(var(--border) / 0.4) 1px, transparent 1px),
-      linear-gradient(to bottom, hsl(var(--border) / 0.4) 1px, transparent 1px);
-    background-size: 48px 48px;
+      linear-gradient(to right, hsl(var(--border) / 0.35) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border) / 0.35) 1px, transparent 1px);
+    background-size: 40px 40px;
   }
   .bg-dots {
-    background-image: radial-gradient(hsl(var(--border) / 0.6) 1px, transparent 1px);
-    background-size: 24px 24px;
+    background-image: radial-gradient(hsl(var(--border) / 0.5) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+  .hud-border {
+    position: relative;
+  }
+  .hud-border::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    width: 8px;
+    height: 8px;
+    border-top: 2px solid hsl(var(--primary));
+    border-left: 2px solid hsl(var(--primary));
+    pointer-events: none;
+  }
+  .hud-border::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    width: 8px;
+    height: 8px;
+    border-bottom: 2px solid hsl(var(--primary));
+    border-right: 2px solid hsl(var(--primary));
+    pointer-events: none;
   }
   .animate-fade-up {
     animation: fadeUp 0.6s ease-out forwards;

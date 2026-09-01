@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { useApp } from '@/context/app-context';
+import { logAudit } from '@/lib/supabase/audit';
 import type { Rubric, RubricCriterion } from '@/types/database';
 import {
   AlertCircle,
@@ -32,23 +33,37 @@ function prettyJson(obj: unknown): string {
 }
 
 export function RubricEditor() {
-  const { db } = useApp();
-
-  // Load rubrics & trades for this institute
-  const rubricsResult = db.from('rubrics').select({});
-  const tradesResult = db.from('trades').select({});
-
-  const rubrics = rubricsResult.data as Rubric[];
-  const tradeMap = Object.fromEntries(
-    (tradesResult.data as { id: string; name: string }[]).map((t) => [t.id, t.name])
-  );
-
-  const [selectedRubricId, setSelectedRubricId] = useState<string>(rubrics[0]?.id ?? '');
-  const [jsonText, setJsonText] = useState<string>(() =>
-    rubrics[0] ? prettyJson(rubrics[0].config) : ''
-  );
+  const { db, activeUser } = useApp();
+  const [rubrics, setRubrics] = useState<Rubric[]>([]);
+  const [tradeMap, setTradeMap] = useState<Record<string, string>>({});
+  const [selectedRubricId, setSelectedRubricId] = useState<string>('');
+  const [jsonText, setJsonText] = useState<string>('');
   const [parseError, setParseError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    db.from('rubrics')
+      .select('*')
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          const rList = data as Rubric[];
+          setRubrics(rList);
+          setSelectedRubricId((prev) => prev || rList[0].id);
+          setJsonText((prev) => prev || prettyJson(rList[0].config));
+        }
+      });
+
+    db.from('trades')
+      .select('*')
+      .then(({ data }) => {
+        if (data) {
+          const tMap = Object.fromEntries(
+            (data as { id: string; name: string }[]).map((t) => [t.id, t.name])
+          );
+          setTradeMap(tMap);
+        }
+      });
+  }, [db]);
 
   const selectedRubric = rubrics.find((r) => r.id === selectedRubricId);
 
@@ -84,42 +99,30 @@ export function RubricEditor() {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (parseError || !selectedRubric) return;
     try {
       const config = JSON.parse(jsonText) as Rubric['config'];
       const previousConfig = selectedRubric.config;
 
-      db.from('rubrics').update(selectedRubricId, { config });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (db as any).from('rubrics').update({ config }).eq('id', selectedRubricId);
 
       // Log immutable enterprise audit event
-      db.logAudit({
+      await logAudit({
         institute_id: selectedRubric.institute_id,
-        actor_id: 'user-003',
-        actor_role: 'institute_admin',
+        actor_id: activeUser.id,
+        actor_role: activeUser.role,
         action: 'rubric.config_updated',
         entity_type: 'rubric',
         entity_id: selectedRubricId,
         metadata: {
           rubric_name: selectedRubric.name,
           version: selectedRubric.version,
-          state_before: {
-            rubric_name: selectedRubric.name,
-            version: selectedRubric.version,
-            pass_threshold: selectedRubric.pass_threshold,
-            criteria_count: previousConfig.criteria?.length ?? 0,
-            criteria: previousConfig.criteria,
-          },
-          state_after: {
-            rubric_name: selectedRubric.name,
-            version: selectedRubric.version,
-            pass_threshold: selectedRubric.pass_threshold,
-            criteria_count: config.criteria?.length ?? 0,
-            criteria: config.criteria,
-            updated_at: new Date().toISOString(),
-          },
+          state_before: previousConfig,
+          state_after: config,
         },
-        ip_address: '172.16.0.8',
+        ip_address: null,
       });
 
       setSaved(true);

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -11,8 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/auth-context';
-import { mockClient } from '@/lib/mock/client';
+import { supabase } from '@/lib/supabase/client';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { Institute } from '@/types/database';
 
 interface AuthModalProps {
   open: boolean;
@@ -24,15 +25,37 @@ export function AuthModal({ open, onOpenChange, defaultTab = 'signin' }: AuthMod
   const { signIn, signUp } = useAuth();
   const [tab, setTab] = useState<'signin' | 'signup'>(defaultTab);
   const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [institutes, setInstitutes] = useState<Institute[]>([]);
 
-  const institutes = mockClient.getInstitutes();
+  // Load active institutes for the sign-up dropdown
+  useEffect(() => {
+    if (!open) return;
+    supabase
+      .from('institutes')
+      .select('*')
+      .eq('is_active', true)
+      .order('name')
+      .then(({ data }) => {
+        if (data) setInstitutes(data as Institute[]);
+      });
+  }, [open]);
 
-  function handleSignIn(e: React.FormEvent<HTMLFormElement>) {
+  // Reset error when switching tabs or opening
+  useEffect(() => {
+    setError(null);
+    setIsSubmitting(false);
+  }, [tab, open]);
+
+  async function handleSignIn(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     const email = formData.get('email') as string;
-    const { error } = signIn(email);
+    const password = formData.get('password') as string;
+    const { error } = await signIn(email, password);
+    setIsSubmitting(false);
     if (error) {
       setError(error);
     } else {
@@ -40,21 +63,28 @@ export function AuthModal({ open, onOpenChange, defaultTab = 'signin' }: AuthMod
     }
   }
 
-  function handleSignUp(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSignUp(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     const email = formData.get('email') as string;
+    const password = formData.get('password') as string;
     const fullName = formData.get('fullName') as string;
     const instituteId = formData.get('institute') as string;
     if (!instituteId) {
-      setError('Please select an institute');
+      setError('Please select your institute.');
+      setIsSubmitting(false);
       return;
     }
-    const { error } = signUp(email, fullName, instituteId);
+    const { error } = await signUp(email, password, fullName, instituteId);
+    setIsSubmitting(false);
     if (error) {
       setError(error);
     } else {
+      // Supabase sends a confirmation email by default.
+      // If email confirmation is disabled in the Supabase project,
+      // the user is signed in immediately.
       onOpenChange(false);
     }
   }
@@ -88,6 +118,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = 'signin' }: AuthMod
                   name="email"
                   type="email"
                   placeholder="you@institute.edu"
+                  autoComplete="email"
                   required
                 />
               </div>
@@ -98,18 +129,13 @@ export function AuthModal({ open, onOpenChange, defaultTab = 'signin' }: AuthMod
                   name="password"
                   type="password"
                   placeholder="••••••••"
+                  autoComplete="current-password"
                   required
                 />
               </div>
-              {error && (
-                <p className="text-sm text-destructive">{error}</p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Demo: use <span className="font-mono font-semibold">sarah.trainee@northgate.edu</span> or
-                <span className="font-mono font-semibold"> admin@northgate.edu</span>
-              </p>
-              <Button type="submit" className="w-full" size="lg">
-                Sign In
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
+                {isSubmitting ? 'Signing in…' : 'Sign In'}
               </Button>
             </form>
           </TabsContent>
@@ -122,6 +148,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = 'signin' }: AuthMod
                   id="signup-name"
                   name="fullName"
                   placeholder="Jane Doe"
+                  autoComplete="name"
                   required
                 />
               </div>
@@ -132,6 +159,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = 'signin' }: AuthMod
                   name="email"
                   type="email"
                   placeholder="you@institute.edu"
+                  autoComplete="email"
                   required
                 />
               </div>
@@ -139,7 +167,13 @@ export function AuthModal({ open, onOpenChange, defaultTab = 'signin' }: AuthMod
                 <Label htmlFor="signup-institute">Institute</Label>
                 <Select name="institute">
                   <SelectTrigger id="signup-institute">
-                    <SelectValue placeholder="Select your institute" />
+                    <SelectValue
+                      placeholder={
+                        institutes.length === 0
+                          ? 'Loading institutes…'
+                          : 'Select your institute'
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {institutes.map((inst) => (
@@ -157,14 +191,14 @@ export function AuthModal({ open, onOpenChange, defaultTab = 'signin' }: AuthMod
                   name="password"
                   type="password"
                   placeholder="••••••••"
+                  autoComplete="new-password"
+                  minLength={8}
                   required
                 />
               </div>
-              {error && (
-                <p className="text-sm text-destructive">{error}</p>
-              )}
-              <Button type="submit" className="w-full" size="lg">
-                Create Account
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
+                {isSubmitting ? 'Creating account…' : 'Create Account'}
               </Button>
             </form>
           </TabsContent>

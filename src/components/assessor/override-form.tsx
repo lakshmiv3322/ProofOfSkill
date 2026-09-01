@@ -15,7 +15,8 @@ import {
 } from '@/components/ui/select';
 import { AlertTriangle, FileText, Save } from 'lucide-react';
 import { useState } from 'react';
-import { mockClient } from '@/lib/mock/client';
+import { useApp } from '@/context/app-context';
+import { logAudit } from '@/lib/supabase/audit';
 
 // ─────────────────────────────────────────────────────────────
 // OverrideForm — Mandatory rationale before changing AI score
@@ -48,6 +49,7 @@ interface OverrideFormProps {
 }
 
 export function OverrideForm({ criteria, onSave, onCancel }: OverrideFormProps) {
+  const { activeUser } = useApp();
   const [scoreValue, setScoreValue] = useState(75);
   const [saved, setSaved] = useState(false);
 
@@ -72,10 +74,10 @@ export function OverrideForm({ criteria, onSave, onCancel }: OverrideFormProps) 
 
   const onSubmit = async (data: OverrideFormValues) => {
     // Write to audit log with State Before vs State After
-    mockClient.logAudit({
-      institute_id: 'inst-001',
-      actor_id: 'user-002',
-      actor_role: 'assessor',
+    await logAudit({
+      institute_id: activeUser.institute_id,
+      actor_id: activeUser.id,
+      actor_role: activeUser.role,
       action: 'score.override',
       entity_type: 'score',
       entity_id: `score-${data.criterionId}`,
@@ -96,10 +98,10 @@ export function OverrideForm({ criteria, onSave, onCancel }: OverrideFormProps) 
           score: data.newScore,
           source: 'human',
           override_rationale: data.rationale,
-          assessor_id: 'user-002',
+          assessor_id: activeUser.id,
         },
       },
-      ip_address: '10.0.4.12',
+      ip_address: null,
     });
 
     setSaved(true);

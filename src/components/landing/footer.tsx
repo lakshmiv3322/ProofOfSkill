@@ -1,10 +1,10 @@
-import { ShieldCheck, Twitter, Linkedin, Github } from 'lucide-react';
+import { ShieldCheck, Twitter, Linkedin, Github, ExternalLink } from 'lucide-react';
 
 const footerLinks = {
-  Product: ['Features', 'Pricing', 'Demo Report', 'API Documentation'],
-  Company: ['About Us', 'Careers', 'Blog', 'Press Kit'],
-  Resources: ['Help Center', 'Community', 'Webinars', 'Status Page'],
-  Legal: ['Privacy Policy', 'Terms of Service', 'Security', 'Compliance'],
+  Product: ['Features', 'Pricing', 'Demo Report', 'BlazePose Kinematics'],
+  Company: ['About Us', 'Accreditation', 'Blog', 'Security Whitepaper'],
+  Resources: ['Rubric Standards', 'AHA Guidelines', 'Edge API Docs', 'Status Page'],
+  Legal: ['Privacy Policy', 'Zero Video Retention', 'FERPA Compliance', 'Terms'],
 };
 
 interface FooterProps {
@@ -13,27 +13,28 @@ interface FooterProps {
 
 export function Footer({ onVerifyClick }: FooterProps) {
   return (
-    <footer className="border-t border-border bg-background">
+    <footer className="border-t border-slate-800 bg-slate-950 text-slate-300">
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="grid grid-cols-2 gap-8 md:grid-cols-6">
           {/* Brand */}
           <div className="col-span-2">
             <div className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-                <ShieldCheck className="h-5 w-5 text-primary-foreground" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                <ShieldCheck className="h-5 w-5" />
               </div>
-              <span className="text-lg font-bold tracking-tight">ProofOfSkill</span>
+              <span className="text-lg font-bold tracking-tight text-white font-serif">ProofOfSkill</span>
             </div>
-            <p className="mt-4 max-w-xs text-sm text-muted-foreground">
-              Transparent, rubric-based skill assessment with verifiable, shareable evidence.
+            <p className="mt-4 max-w-xs text-xs sm:text-sm text-slate-400 leading-relaxed">
+              Transparent, deterministic skill assessment with cryptographically verifiable, shareable evidence.
             </p>
             <div className="mt-4">
               <button
                 onClick={onVerifyClick}
-                className="inline-flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-semibold hover:underline"
+                className="inline-flex items-center gap-1.5 text-xs text-emerald-400 font-semibold font-mono hover:text-emerald-300 transition-colors"
               >
                 <ShieldCheck className="h-3.5 w-3.5" />
-                Public Registry & Certificate Verifier →
+                <span>Public Registry & Certificate Verifier</span>
+                <ExternalLink className="h-3 w-3" />
               </button>
             </div>
             <div className="mt-4 flex gap-3">
@@ -41,7 +42,7 @@ export function Footer({ onVerifyClick }: FooterProps) {
                 <a
                   key={idx}
                   href="#"
-                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-800 bg-slate-900 text-slate-400 transition-colors hover:border-emerald-500/40 hover:text-emerald-400"
                 >
                   <Icon className="h-4 w-4" />
                 </a>
@@ -52,13 +53,13 @@ export function Footer({ onVerifyClick }: FooterProps) {
           {/* Link columns */}
           {Object.entries(footerLinks).map(([category, links]) => (
             <div key={category}>
-              <h4 className="text-sm font-semibold">{category}</h4>
-              <ul className="mt-4 space-y-3">
+              <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-300 mb-4">{category}</h4>
+              <ul className="space-y-2.5 text-xs text-slate-400">
                 {links.map((link) => (
                   <li key={link}>
                     <a
                       href="#"
-                      className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                      className="transition-colors hover:text-emerald-400"
                     >
                       {link}
                     </a>
@@ -69,12 +70,12 @@ export function Footer({ onVerifyClick }: FooterProps) {
           ))}
         </div>
 
-        <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-border pt-8 sm:flex-row">
-          <p className="text-sm text-muted-foreground">
+        <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-slate-800/80 pt-8 sm:flex-row text-xs text-slate-500 font-mono">
+          <p>
             &copy; 2026 ProofOfSkill, Inc. All rights reserved.
           </p>
-          <p className="text-sm text-muted-foreground">
-            Built for trade schools, vocational programs, and enterprise training.
+          <p>
+            Built for trade schools, vocational programs, and enterprise credentialing.
           </p>
         </div>
       </div>

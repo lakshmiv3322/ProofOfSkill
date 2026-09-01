@@ -1,25 +1,59 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { AppShell } from '@/components/app/app-shell';
 import { RoleSwitcher } from '@/components/app/role-switcher';
-import { AppProvider, useApp } from '@/context/app-context';
+import { AppProvider, useApp, DEMO_MODE } from '@/context/app-context';
+import { Loader2 } from 'lucide-react';
 
-// Trainee views
-import { SkillCatalog } from '@/components/trainee/skill-catalog';
-import { AssessmentInstructions } from '@/components/trainee/assessment-instructions';
-import { MyProgress } from '@/components/trainee/my-progress';
-import { VideoCapture } from '@/components/trainee/video-capture';
+// Code-split Trainee views
+const SkillCatalog = lazy(() =>
+  import('@/components/trainee/skill-catalog').then((m) => ({ default: m.SkillCatalog }))
+);
+const AssessmentInstructions = lazy(() =>
+  import('@/components/trainee/assessment-instructions').then((m) => ({ default: m.AssessmentInstructions }))
+);
+const MyProgress = lazy(() =>
+  import('@/components/trainee/my-progress').then((m) => ({ default: m.MyProgress }))
+);
+const VideoCapture = lazy(() =>
+  import('@/components/trainee/video-capture').then((m) => ({ default: m.VideoCapture }))
+);
 
-// Assessor views
-import { ReviewQueue } from '@/components/assessor/review-queue';
-import { EvaluationPage } from '@/components/assessor/evaluation-page';
+// Code-split Assessor views
+const ReviewQueue = lazy(() =>
+  import('@/components/assessor/review-queue').then((m) => ({ default: m.ReviewQueue }))
+);
+const EvaluationPage = lazy(() =>
+  import('@/components/assessor/evaluation-page').then((m) => ({ default: m.EvaluationPage }))
+);
 
-// Admin views
-import { CohortMetrics } from '@/components/admin/cohort-metrics';
-import { BillingCounter } from '@/components/admin/billing-counter';
-import { RubricEditor } from '@/components/admin/rubric-editor';
-import { AuditLogExplorer } from '@/components/admin/audit-log-explorer';
+// Code-split Admin views
+const CohortMetrics = lazy(() =>
+  import('@/components/admin/cohort-metrics').then((m) => ({ default: m.CohortMetrics }))
+);
+const BillingCounter = lazy(() =>
+  import('@/components/admin/billing-counter').then((m) => ({ default: m.BillingCounter }))
+);
+const RubricEditor = lazy(() =>
+  import('@/components/admin/rubric-editor').then((m) => ({ default: m.RubricEditor }))
+);
+const AuditLogExplorer = lazy(() =>
+  import('@/components/admin/audit-log-explorer').then((m) => ({ default: m.AuditLogExplorer }))
+);
 
-import { PublicVerifyPage } from '@/components/verify/public-verify-page';
+const PublicVerifyPage = lazy(() =>
+  import('@/components/verify/public-verify-page').then((m) => ({ default: m.PublicVerifyPage }))
+);
+
+function ViewLoading() {
+  return (
+    <div className="flex h-full min-h-[300px] w-full items-center justify-center p-8 text-muted-foreground">
+      <div className="flex flex-col items-center gap-3">
+        <Loader2 className="h-7 w-7 animate-spin text-primary" />
+        <p className="text-xs font-medium">Loading view...</p>
+      </div>
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────
 // Default view per role
@@ -150,12 +184,14 @@ function DashboardInner() {
   };
 
   return (
-    // pt-8 pushes content below the 32px-tall RoleSwitcher bar
-    <div className="pt-8 h-screen flex flex-col">
-      <RoleSwitcher />
+    // pt-8 only needed when the dev RoleSwitcher bar is visible
+    <div className={DEMO_MODE ? 'pt-8 h-screen flex flex-col' : 'h-screen flex flex-col'}>
+      {DEMO_MODE && <RoleSwitcher />}
       <div className="flex-1 overflow-hidden">
         <AppShell activeView={resolvedView} onNavigate={handleNavigate}>
-          {renderView()}
+          <Suspense fallback={<ViewLoading />}>
+            {renderView()}
+          </Suspense>
         </AppShell>
       </div>
     </div>

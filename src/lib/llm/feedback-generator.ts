@@ -1,15 +1,16 @@
 // ─────────────────────────────────────────────────────────────
-// LLM Narrative Layer with Fail-safe
+// LLM Narrative Layer with Fail-safe (Edge Function & Fallback)
 // ─────────────────────────────────────────────────────────────
 // Architecture:
 //  1. `generateFullFeedback` accepts the rubric's CriterionDelta[]
 //     from the deterministic engine — it never sets or reads the score.
-//  2. For each criterion, it races a simulated Claude API call against
-//     a 2-second timeout.
-//  3. If the simulated LLM call takes >2 s, the rule-based fallback
-//     template fires automatically so processing never stalls.
+//  2. Calls server-side Supabase Edge Function with Claude API.
+//  3. If Edge function is unavailable or exceeds 2-second timeout,
+//     the rule-based fallback templates fire immediately so processing
+//     never stalls.
 // ─────────────────────────────────────────────────────────────
 import type { CriterionDelta } from '@/lib/scoring/rubric-engine';
+import { supabase } from '@/lib/supabase/client';
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -26,10 +27,8 @@ export interface FullFeedback {
 }
 
 // ── Fallback templates (rule-based, criterion-id-mapped) ──────
-// Each template function receives the delta string so it can echo
-// the exact measurement back to the learner.
 
-const FALLBACK_TEMPLATES: Record<string, (delta: string) => string> = {
+export const FALLBACK_TEMPLATES: Record<string, (delta: string) => string> = {
   'cpr-rate': (delta) => {
     if (delta.includes('Too Slow') || delta.includes('Significantly Too Slow')) {
       const bpm = extractNumber(delta, 'BPM:');
@@ -96,47 +95,6 @@ const FALLBACK_TEMPLATES: Record<string, (delta: string) => string> = {
     `Review the rubric indicators and reference video clip for detailed technique guidance.`,
 };
 
-// ── Simulated Claude API connector ───────────────────────────
-
-/**
- * Simulates a Claude API call that takes the delta string from the
- * rubric engine and returns a rich coaching narrative.
- * Delay is uniformly random between 800 ms – 3200 ms so roughly
- * 40 % of calls will exceed the 2 s failsafe threshold.
- */
-async function simulateLLMCall(
-  criterionId: string,
-  delta: string
-): Promise<string> {
-  return new Promise((resolve) => {
-    const delay = 800 + Math.random() * 2400; // 800–3200 ms
-
-    setTimeout(() => {
-      // Compose a richer narrative from the delta string (mimics Claude output)
-      const fallbackFn =
-        FALLBACK_TEMPLATES[criterionId] ?? FALLBACK_TEMPLATES['default'];
-      const base = fallbackFn(delta);
-
-      // Add a "Claude-style" motivational suffix to distinguish LLM path from fallback
-      const suffixes: Record<string, string> = {
-        'cpr-rate':
-          ' Remember: in a real cardiac arrest, every 10 BPM outside the window can halve effective perfusion.',
-        'cpr-depth':
-          ' Visualise pressing a car horn — firm, deliberate, and fully released each time.',
-        'cpr-recoil':
-          ' Practice with a CPR feedback device to receive real-time recoil coaching.',
-        'cpr-posture':
-          ' Great posture also protects your back during extended resuscitation cycles.',
-      };
-
-      resolve(base + (suffixes[criterionId] ?? ''));
-    }, delay);
-  });
-}
-
-// ── Helper ───────────────────────────────────────────────────
-
-/** Extracts the first numeric value that follows a keyword in the delta string. */
 function extractNumber(delta: string, after: string): number {
   const idx = delta.indexOf(after);
   if (idx === -1) return 0;
@@ -144,10 +102,46 @@ function extractNumber(delta: string, after: string): number {
   return match ? parseFloat(match[0]) : 0;
 }
 
-// ── Single-criterion failsafe (kept for backward compat) ─────
+// ── Full rubric feedback narrative generator ──────────────────
+
+export async function generateFullFeedback(
+  deltas: CriterionDelta[]
+): Promise<FullFeedback> {
+  // 1. Attempt to invoke server-side Supabase Edge Function
+  try {
+    const edgePromise = supabase.functions.invoke('generate-feedback', {
+      body: { deltas },
+    });
+
+    const timeoutPromise = new Promise<{ data: null; error: Error }>((resolve) =>
+      setTimeout(() => resolve({ data: null, error: new Error('Client timeout') }), 2500)
+    );
+
+    const result = await Promise.race([edgePromise, timeoutPromise]);
+
+    if (!result.error && result.data && Array.isArray(result.data.sections)) {
+      return result.data as FullFeedback;
+    }
+  } catch (err) {
+    console.info('[FeedbackGenerator] Edge Function generate-feedback falling back to local templates:', err);
+  }
+
+  // 2. Local rule-based fallback generator
+  const sections: FeedbackSection[] = deltas.map(({ criterionId, label, delta }) => {
+    const fallbackFn = FALLBACK_TEMPLATES[criterionId] ?? FALLBACK_TEMPLATES['default'];
+    return {
+      criterionId,
+      label,
+      text: fallbackFn(delta),
+      isFallback: true,
+    };
+  });
+
+  return { sections, anyFallback: true };
+}
 
 /**
- * @deprecated Use `generateFullFeedback` for the full rubric sweep.
+ * @deprecated Use `generateFullFeedback`
  */
 export async function generateFeedback(
   criterionId: string,
@@ -155,60 +149,9 @@ export async function generateFeedback(
   metrics: Record<string, number>
 ): Promise<{ text: string; isFallback: boolean }> {
   const delta = `BPM: ${metrics.actualBpm ?? 0}`;
-  const fallbackFn =
-    FALLBACK_TEMPLATES[criterionId] ?? FALLBACK_TEMPLATES['default'];
-  const fallbackText = fallbackFn(delta);
-
-  const timeoutPromise = new Promise<{ text: string; isFallback: boolean }>((resolve) => {
-    setTimeout(() => {
-      console.warn(`[Fail-safe] LLM timeout for ${criterionId}, using template.`);
-      resolve({ text: fallbackText, isFallback: true });
-    }, 2000);
-  });
-
-  const llmPromise = simulateLLMCall(criterionId, delta).then((text) => ({
-    text,
-    isFallback: false,
-  }));
-
-  return Promise.race([llmPromise, timeoutPromise]);
-}
-
-// ── Full rubric sweep ─────────────────────────────────────────
-
-/**
- * Generates a coaching narrative section for every criterion in the rubric.
- * Each criterion independently races the simulated LLM against a 2-second
- * failsafe timeout, so the overall function always resolves quickly.
- *
- * CRITICAL: This function reads `delta` strings from the rubric engine output
- * and never reads or modifies numeric scores. Score integrity is maintained.
- */
-export async function generateFullFeedback(
-  deltas: CriterionDelta[]
-): Promise<FullFeedback> {
-  const sectionPromises = deltas.map(({ criterionId, label, delta }) => {
-    const fallbackFn =
-      FALLBACK_TEMPLATES[criterionId] ?? FALLBACK_TEMPLATES['default'];
-    const fallbackText = fallbackFn(delta);
-
-    // Per-criterion 2-second failsafe
-    const timeoutPromise = new Promise<FeedbackSection>((resolve) => {
-      setTimeout(() => {
-        console.warn(`[Fail-safe] LLM timeout for criterion "${criterionId}" — using template.`);
-        resolve({ criterionId, label, text: fallbackText, isFallback: true });
-      }, 2000);
-    });
-
-    const llmPromise = simulateLLMCall(criterionId, delta).then(
-      (text): FeedbackSection => ({ criterionId, label, text, isFallback: false })
-    );
-
-    return Promise.race([llmPromise, timeoutPromise]);
-  });
-
-  const sections = await Promise.all(sectionPromises);
-  const anyFallback = sections.some((s) => s.isFallback);
-
-  return { sections, anyFallback };
+  const fallbackFn = FALLBACK_TEMPLATES[criterionId] ?? FALLBACK_TEMPLATES['default'];
+  return {
+    text: fallbackFn(delta),
+    isFallback: true,
+  };
 }

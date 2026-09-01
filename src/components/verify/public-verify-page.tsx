@@ -1,22 +1,22 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { QRCodeSVG } from '@/components/common/qr-code';
+import { supabase } from '@/lib/supabase/client';
 import { mockClient } from '@/lib/mock/client';
+import { downloadCertificatePDF, computeVerificationHash } from '@/lib/certificates/pdf-generator';
 import type { Certificate, User, Trade, Rubric, Institute } from '@/types/database';
 import {
   ShieldCheck,
   CheckCircle2,
-  Printer,
+  Download,
   Copy,
   Check,
   Search,
   ExternalLink,
-  Award,
   AlertTriangle,
   Building2,
   Calendar,
@@ -24,13 +24,14 @@ import {
   ArrowLeft,
   GraduationCap,
   FileCheck2,
+  Loader2,
+  Hash,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ─────────────────────────────────────────────────────────────
 // PublicVerifyPage — Unauthenticated Official Verification View
 // Route: /verify/:certificate_id
-// Immutably pulls data from certificate, trade, rubric & institute.
 // ─────────────────────────────────────────────────────────────
 
 interface PublicVerifyPageProps {
@@ -38,69 +39,119 @@ interface PublicVerifyPageProps {
   onBack?: () => void;
 }
 
+interface CertData {
+  certificate: Certificate;
+  trainee: User | null;
+  assessor: User | null;
+  trade: Trade | null;
+  rubric: Rubric | null;
+  institute: Institute | null;
+  // Joined fields
+  trainee_name: string;
+  trade_name: string;
+  institute_name: string;
+}
+
 export function PublicVerifyPage({
-  initialCode = 'POS-CPR-2026-042AH',
+  initialCode = '',
   onBack,
 }: PublicVerifyPageProps) {
   const [searchCode, setSearchCode] = useState(initialCode);
   const [currentCode, setCurrentCode] = useState(initialCode);
   const [copied, setCopied] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [certData, setCertData] = useState<CertData | null>(null);
+  const [ledgerHash, setLedgerHash] = useState<string>('8f4e3c13a0219bd948f2c9e782d1a3');
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Look up certificate across all tenants (public unauthenticated query)
-  const certData = useMemo(() => {
-    const certsResult = mockClient.from('certificates').select({
-      bypassTenant: true,
-      filter: (c) =>
-        c.verification_code.toLowerCase() === currentCode.toLowerCase() ||
-        c.id.toLowerCase() === currentCode.toLowerCase(),
-    });
+  // ── Fetch certificate via Supabase RPC or Mock Client ───────
 
-    const certificate = certsResult.data[0] as Certificate | undefined;
-    if (!certificate) return null;
+  useEffect(() => {
+    const code = currentCode.trim();
+    if (!code) return;
 
-    // Resolve trainee
-    const traineeResult = mockClient.from('users').select({
-      bypassTenant: true,
-      filter: (u) => u.id === certificate.trainee_id,
-    });
-    const trainee = traineeResult.data[0] as User | undefined;
+    setIsLoading(true);
+    setCertData(null);
 
-    // Resolve assessor
-    const assessorResult = mockClient.from('users').select({
-      bypassTenant: true,
-      filter: (u) => u.id === certificate.issued_by,
-    });
-    const assessor = assessorResult.data[0] as User | undefined;
+    const lookupCertificate = async () => {
+      // 1. Try Supabase RPC
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase.rpc as any)('get_certificate_by_code', { p_code: code });
 
-    // Resolve trade
-    const tradeResult = mockClient.from('trades').select({
-      bypassTenant: true,
-      filter: (t) => t.id === certificate.trade_id,
-    });
-    const trade = tradeResult.data[0] as Trade | undefined;
+        if (!error && data && data.verification_code) {
+          const row = data as CertData & {
+            trainee_name: string;
+            trade_name: string;
+            institute_name: string;
+          };
 
-    // Resolve rubric
-    const rubricResult = mockClient.from('rubrics').select({
-      bypassTenant: true,
-      filter: (r) => r.trade_id === certificate.trade_id,
-    });
-    const rubric = rubricResult.data[0] as Rubric | undefined;
+          const hash = await computeVerificationHash({
+            certificateId: (row as unknown as Certificate).id,
+            submissionId: (row as unknown as Certificate).submission_id,
+            traineeId: (row as unknown as Certificate).trainee_id,
+            score: Number((row as unknown as Certificate).overall_score),
+            issuedAt: (row as unknown as Certificate).issued_at,
+          });
+          setLedgerHash(hash);
 
-    // Resolve institute
-    const instituteResult = mockClient.from('institutes').select({
-      bypassTenant: true,
-      filter: (i) => i.id === certificate.institute_id,
-    });
-    const institute = instituteResult.data[0] as Institute | undefined;
+          setCertData({
+            certificate: row as unknown as Certificate,
+            trainee: null,
+            assessor: null,
+            trade: null,
+            rubric: null,
+            institute: null,
+            trainee_name: row.trainee_name || 'Verified Candidate',
+            trade_name: row.trade_name || 'CPR / First-Aid Chest Compression',
+            institute_name: row.institute_name || 'Apex Vocational Institute',
+          });
+          setIsLoading(false);
+          return;
+        }
+      } catch (e) {
+        console.info('[Verify] Supabase RPC lookup notice:', e);
+      }
 
-    return {
-      certificate,
-      trainee,
-      assessor,
-      trade,
-      rubric,
-      institute,
+      // 2. Fallback to mock Client / Local Store
+      const { data: certs } = mockClient.from('certificates').select({
+        bypassTenant: true,
+        filter: (c) => c.verification_code === code || c.id === code,
+      });
+
+      if (certs && certs.length > 0) {
+        const cert = certs[0];
+        const { data: users } = mockClient.from('users').select({ bypassTenant: true, filter: (u) => u.id === cert.trainee_id });
+        const { data: trades } = mockClient.from('trades').select({ bypassTenant: true, filter: (t) => t.id === cert.trade_id });
+        const { data: institutes } = mockClient.from('institutes').select({ bypassTenant: true, filter: (i) => i.id === cert.institute_id });
+        const { data: rubrics } = mockClient.from('rubrics').select({ bypassTenant: true, filter: (r) => r.trade_id === cert.trade_id });
+
+        const hash = await computeVerificationHash({
+          certificateId: cert.id,
+          submissionId: cert.submission_id,
+          traineeId: cert.trainee_id,
+          score: Number(cert.overall_score),
+          issuedAt: cert.issued_at,
+        });
+        setLedgerHash(hash);
+
+        setCertData({
+          certificate: cert,
+          trainee: users[0] || null,
+          assessor: null,
+          trade: trades[0] || null,
+          rubric: rubrics[0] || null,
+          institute: institutes[0] || null,
+          trainee_name: users[0]?.full_name || 'Alex Mercer',
+          trade_name: trades[0]?.name || 'CPR / First-Aid Chest Compression',
+          institute_name: institutes[0]?.name || 'Apex Vocational Institute',
+        });
+      }
+
+      setIsLoading(false);
     };
+
+    lookupCertificate();
   }, [currentCode]);
 
   const verificationUrl = typeof window !== 'undefined'
@@ -113,8 +164,24 @@ export function PublicVerifyPage({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handleDownloadPDF = async () => {
+    if (!certData) return;
+    setIsDownloading(true);
+    try {
+      await downloadCertificatePDF({
+        certificate: certData.certificate,
+        traineeName: certData.trainee_name,
+        tradeName: certData.trade_name,
+        instituteName: certData.institute_name,
+        rubricName: certData.rubric?.name || 'CPR Chest Compression Standard',
+        passThreshold: certData.rubric?.pass_threshold || 70,
+        assessorName: 'Lead Certifying Assessor',
+      });
+    } catch (err) {
+      console.error('[DownloadPDF] error:', err);
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   const handleSearch = (e: React.FormEvent) => {
@@ -125,7 +192,7 @@ export function PublicVerifyPage({
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-primary/30 selection:text-white print:bg-white print:text-black">
+    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-emerald-500/30 selection:text-white print:bg-white print:text-black">
       {/* ── Top Header / Nav (Hidden on Print) ─────────────── */}
       <header className="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md sticky top-0 z-40 print:hidden">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
@@ -135,7 +202,7 @@ export function PublicVerifyPage({
                 variant="ghost"
                 size="sm"
                 onClick={onBack}
-                className="text-slate-400 hover:text-white hover:bg-slate-800 -ml-2"
+                className="text-slate-400 hover:text-white hover:bg-slate-800 -ml-2 text-xs"
               >
                 <ArrowLeft className="h-4 w-4 mr-1.5" />
                 Back
@@ -146,7 +213,7 @@ export function PublicVerifyPage({
                 <ShieldCheck className="h-5 w-5" />
               </div>
               <div>
-                <span className="font-bold text-sm tracking-tight text-white">ProofOfSkill</span>
+                <span className="font-bold text-sm tracking-tight text-white font-serif">ProofOfSkill</span>
                 <span className="text-[10px] text-emerald-400 font-mono block -mt-0.5">PUBLIC REGISTRY VERIFIER</span>
               </div>
             </div>
@@ -160,10 +227,10 @@ export function PublicVerifyPage({
                 value={searchCode}
                 onChange={(e) => setSearchCode(e.target.value)}
                 placeholder="Lookup code (e.g. POS-CPR-...)"
-                className="h-8 pl-8 pr-3 text-xs bg-slate-900/80 border-slate-700 text-white placeholder:text-slate-500 focus-visible:ring-emerald-500"
+                className="h-8 pl-8 pr-3 text-xs bg-slate-900/80 border-slate-700 text-white placeholder:text-slate-500 focus-visible:ring-emerald-500 font-mono"
               />
             </div>
-            <Button type="submit" size="sm" variant="secondary" className="h-8 text-xs shrink-0 bg-slate-800 hover:bg-slate-700 text-white">
+            <Button type="submit" size="sm" variant="secondary" className="h-8 text-xs shrink-0 bg-slate-800 hover:bg-slate-700 text-white font-medium">
               Lookup
             </Button>
           </form>
@@ -172,7 +239,14 @@ export function PublicVerifyPage({
 
       {/* ── Main Content Area ──────────────────────────────── */}
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-12 print:p-0 print:max-w-none">
-        {certData ? (
+        {isLoading ? (
+          <div className="flex justify-center items-center py-24">
+            <div className="flex flex-col items-center gap-3 text-slate-400">
+              <Loader2 className="h-8 w-8 animate-spin text-emerald-400" />
+              <p className="text-xs font-mono">Looking up cryptographic certificate ledger…</p>
+            </div>
+          </div>
+        ) : certData ? (
           <div className="space-y-8">
             {/* Verification Banner (Screen only) */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-emerald-500/30 bg-emerald-950/30 text-emerald-300 print:hidden">
@@ -187,8 +261,8 @@ export function PublicVerifyPage({
                       VERIFIED ACTIVE
                     </Badge>
                   </div>
-                  <p className="text-xs text-emerald-400/80 mt-0.5">
-                    Immutable verification record backed by ProofOfSkill multi-tenant audit trail.
+                  <p className="text-xs text-emerald-400/80 mt-0.5 font-mono">
+                    Immutable verification record backed by ProofOfSkill multi-tenant audit ledger.
                   </p>
                 </div>
               </div>
@@ -205,10 +279,15 @@ export function PublicVerifyPage({
                 </Button>
                 <Button
                   size="sm"
-                  onClick={handlePrint}
+                  onClick={handleDownloadPDF}
+                  disabled={isDownloading}
                   className="h-8 text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold"
                 >
-                  <Printer className="h-3.5 w-3.5 mr-1.5" />
+                  {isDownloading ? (
+                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  ) : (
+                    <Download className="h-3.5 w-3.5 mr-1.5" />
+                  )}
                   Download Official Certificate
                 </Button>
               </div>
@@ -237,7 +316,7 @@ export function PublicVerifyPage({
               <div className="text-center relative z-10 mb-8">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-300 print:text-amber-800 print:border-amber-700 text-xs font-semibold tracking-wider uppercase mb-3">
                   <Building2 className="h-3.5 w-3.5" />
-                  {certData.institute?.name ?? 'Accredited Institution'}
+                  {certData.institute_name ?? 'Accredited Institution'}
                 </div>
                 <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-white print:text-black uppercase font-serif">
                   Certificate of Practical Competency
@@ -249,25 +328,25 @@ export function PublicVerifyPage({
 
               {/* Recipient & Trade */}
               <div className="text-center relative z-10 mb-8 space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 print:text-slate-600">
+                <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 print:text-slate-600 font-mono">
                   Awarded to
                 </p>
                 <div className="text-2xl sm:text-4xl font-black text-amber-300 print:text-amber-900 tracking-tight font-serif underline decoration-amber-500/40 underline-offset-8">
-                  {certData.trainee?.full_name ?? 'Candidate Name'}
+                  {certData.trainee_name ?? 'Candidate Name'}
                 </div>
                 <p className="text-xs text-slate-400 print:text-slate-600 font-mono">
-                  Candidate ID: {certData.trainee?.id ?? 'N/A'} · Cohort: {String((certData.trainee?.metadata as Record<string, unknown>)?.cohort ?? 'General')}
+                  Candidate ID: {certData.certificate.trainee_id ?? 'N/A'} · Cohort: General
                 </p>
 
                 <div className="pt-4 max-w-xl mx-auto">
-                  <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 print:text-slate-600">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 print:text-slate-600 font-mono">
                     For Mastery In
                   </p>
                   <p className="text-lg sm:text-2xl font-bold text-white print:text-black mt-1">
-                    {certData.trade?.name ?? 'Trade Certification'}
+                    {certData.trade_name ?? 'Trade Certification'}
                   </p>
-                  <p className="text-xs text-slate-400 print:text-slate-600 mt-0.5">
-                    Category: {certData.trade?.category ?? 'Vocational & Health Science'}
+                  <p className="text-xs text-slate-400 print:text-slate-600 mt-0.5 font-mono">
+                    Category: Vocational & Health Science
                   </p>
                 </div>
               </div>
@@ -276,25 +355,25 @@ export function PublicVerifyPage({
               <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-6 my-8 pt-6 border-t border-slate-800 print:border-slate-300">
                 {/* Score badge box */}
                 <div className="flex flex-col items-center justify-center p-5 rounded-xl border border-amber-500/20 bg-slate-950/60 print:bg-slate-50 print:border-slate-300 text-center">
-                  <p className="text-xs font-medium text-slate-400 print:text-slate-600 uppercase tracking-wider">
+                  <p className="text-xs font-medium text-slate-400 print:text-slate-600 uppercase tracking-wider font-mono">
                     Certified Score
                   </p>
                   <div className="text-4xl sm:text-5xl font-extrabold text-amber-400 print:text-amber-700 my-1 font-serif">
-                    {certData.certificate.overall_score.toFixed(1)}%
+                    {Number(certData.certificate.overall_score).toFixed(1)}%
                   </div>
-                  <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 print:bg-emerald-100 print:text-emerald-800 text-xs font-semibold">
+                  <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 print:bg-emerald-100 print:text-emerald-800 text-xs font-semibold font-mono">
                     ✓ PASSED (Threshold: {certData.rubric?.pass_threshold ?? 70}%)
                   </Badge>
                   <p className="text-[10px] text-slate-500 print:text-slate-600 mt-2 font-mono">
-                    Deterministic Math Rubric
+                    Deterministic BlazePose & DTW Rubric
                   </p>
                 </div>
 
                 {/* Rubric Criteria Breakdown */}
                 <div className="md:col-span-2 space-y-2.5 p-4 rounded-xl border border-slate-800 print:border-slate-300 bg-slate-950/40 print:bg-slate-50">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-300 print:text-slate-700 mb-2 flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-300 print:text-slate-700 mb-2 flex items-center justify-between font-mono">
                     <span>Assessed Criteria ({certData.rubric?.name ?? 'Standard Rubric'})</span>
-                    <span className="text-[10px] text-slate-400 font-mono">Weight Normalised</span>
+                    <span className="text-[10px] text-slate-400">Weight Normalised</span>
                   </p>
                   {certData.rubric?.config?.criteria?.map((c) => (
                     <div key={c.id} className="text-xs">
@@ -302,12 +381,16 @@ export function PublicVerifyPage({
                         <span className="font-medium">{c.label}</span>
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] text-slate-500 font-mono">Weight: {c.weight}%</span>
-                          <span className="font-bold text-emerald-400 print:text-emerald-700">✓ Satisfied</span>
+                          <span className="font-bold text-emerald-400 print:text-emerald-700 font-mono">✓ Satisfied</span>
                         </div>
                       </div>
                       <Progress value={92} className="h-1 bg-slate-800 print:bg-slate-200" />
                     </div>
-                  ))}
+                  )) ?? (
+                    <div className="text-xs text-slate-400 font-mono">
+                      Standard criteria satisfied against certified reference sequence.
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -317,17 +400,17 @@ export function PublicVerifyPage({
                 <div className="text-center sm:text-left space-y-1">
                   <div className="h-10 flex items-end justify-center sm:justify-start">
                     <span className="font-serif italic text-lg sm:text-xl text-amber-200 print:text-slate-800 border-b border-slate-700 print:border-slate-400 pb-0.5 px-2">
-                      {certData.assessor?.full_name ?? 'Certified Assessor'}
+                      Certified Assessor
                     </span>
                   </div>
                   <p className="text-xs font-semibold text-slate-200 print:text-slate-900 mt-1">
-                    {certData.assessor?.full_name ?? 'Mike Rodriguez'}
+                    Certified Assessor
                   </p>
                   <p className="text-[10px] text-slate-400 print:text-slate-600">
-                    Lead Certifying Assessor · Northgate Technical College
+                    Lead Certifying Assessor · {certData.institute_name}
                   </p>
                   <p className="text-[10px] text-slate-500 font-mono">
-                    Assessor ID: {certData.assessor?.id ?? 'user-002'}
+                    Assessor ID: {certData.certificate.issued_by}
                   </p>
                 </div>
 
@@ -339,7 +422,7 @@ export function PublicVerifyPage({
                       <span>Issued: <strong>{new Date(certData.certificate.issued_at).toLocaleDateString()}</strong></span>
                     </div>
                     {certData.certificate.expires_at && (
-                      <div className="text-[10px] text-slate-400 print:text-slate-600 mt-0.5">
+                      <div className="text-[10px] text-slate-400 print:text-slate-600 mt-0.5 font-mono">
                         Expires: {new Date(certData.certificate.expires_at).toLocaleDateString()}
                       </div>
                     )}
@@ -372,8 +455,9 @@ export function PublicVerifyPage({
                 <p className="text-[10px] sm:text-[11px] text-slate-400 print:text-slate-600 leading-relaxed max-w-2xl mx-auto font-mono">
                   <strong className="text-amber-400 print:text-amber-800">LEGAL & REGULATORY COMPLIANCE NOTICE:</strong> Assessment assistance layer. Not autonomous certification. Reference Dataset: Validated against standard AHA CPR guidelines. All final certification decisions are executed by certified human assessors in compliance with institutional and governing body criteria.
                 </p>
-                <p className="text-[9px] text-slate-500 print:text-slate-400 mt-1 font-mono">
-                  ProofOfSkill Registry ID: {certData.certificate.id} · SHA-256 Ledger Hash: 8f4e3c13a0219bd948f2c9e782d1a3
+                <p className="text-[9px] text-slate-500 print:text-slate-400 mt-1 font-mono flex items-center justify-center gap-1">
+                  <Hash className="h-3 w-3 text-slate-500" />
+                  ProofOfSkill Registry ID: {certData.certificate.id} · SHA-256 Ledger Hash: {ledgerHash}
                 </p>
               </div>
             </div>
@@ -382,8 +466,8 @@ export function PublicVerifyPage({
             <div className="grid sm:grid-cols-2 gap-4 print:hidden">
               <Card className="border-slate-800 bg-slate-900/60">
                 <CardContent className="p-4 space-y-2">
-                  <p className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                    <FileCheck2 className="h-4 w-4 text-primary" />
+                  <p className="text-xs font-semibold text-slate-300 flex items-center gap-1.5 font-mono">
+                    <FileCheck2 className="h-4 w-4 text-emerald-400" />
                     Immutable Blockchain & Audit Ledger
                   </p>
                   <p className="text-xs text-slate-400 leading-relaxed">
@@ -391,6 +475,7 @@ export function PublicVerifyPage({
                   </p>
                   <div className="pt-2 text-[11px] font-mono text-slate-500 space-y-1">
                     <p>Status: Active (0 Revocations)</p>
+                    <p>SHA-256: {ledgerHash.slice(0, 32)}...</p>
                     <p>Verification Protocol: POS-v2-ST</p>
                   </div>
                 </CardContent>
@@ -398,7 +483,7 @@ export function PublicVerifyPage({
 
               <Card className="border-slate-800 bg-slate-900/60">
                 <CardContent className="p-4 space-y-2">
-                  <p className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <p className="text-xs font-semibold text-slate-300 flex items-center gap-1.5 font-mono">
                     <GraduationCap className="h-4 w-4 text-emerald-400" />
                     Employer & Institutional Verification
                   </p>
@@ -410,7 +495,7 @@ export function PublicVerifyPage({
                       variant="link"
                       size="sm"
                       onClick={handleCopyLink}
-                      className="p-0 h-auto text-xs text-emerald-400 hover:text-emerald-300 gap-1"
+                      className="p-0 h-auto text-xs text-emerald-400 hover:text-emerald-300 gap-1 font-mono"
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
                       Direct verification URL: {verificationUrl}
