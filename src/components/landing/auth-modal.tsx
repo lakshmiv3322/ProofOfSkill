@@ -145,82 +145,86 @@ export function AuthModal({ open, onOpenChange, defaultTab = 'signin' }: AuthMod
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[440px]">
+      <DialogContent className="sm:max-w-[460px] glass-panel border-white/10 bg-[#070a12]/95 backdrop-blur-2xl shadow-2xl p-6 sm:p-8 rounded-2xl">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold tracking-tight">
+          <DialogTitle className="text-2xl font-headline font-bold text-white tracking-tight">
             {tab === 'signin' ? 'Welcome back' : 'Create your account'}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm text-slate-400">
             {tab === 'signin'
-              ? 'Sign in to access your assessment dashboard.'
-              : 'Join your institute and start building verifiable skill evidence.'}
+              ? 'Sign in to access your assessment dashboard and telemetry.'
+              : 'Join your accredited institute and start building verifiable credentials.'}
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as 'signin' | 'signup')}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="signin">Sign In</TabsTrigger>
-            <TabsTrigger value="signup">Sign Up</TabsTrigger>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as 'signin' | 'signup')} className="mt-2">
+          <TabsList className="grid w-full grid-cols-2 bg-white/[0.04] p-1 rounded-xl border border-white/10 font-mono text-xs">
+            <TabsTrigger value="signin" className="rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 data-[state=active]:border data-[state=active]:border-cyan-500/30">Sign In</TabsTrigger>
+            <TabsTrigger value="signup" className="rounded-lg data-[state=active]:bg-purple-500/20 data-[state=active]:text-purple-300 data-[state=active]:border data-[state=active]:border-purple-500/30">Sign Up</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="signin" className="mt-4">
+          <TabsContent value="signin" className="mt-5">
             <form onSubmit={handleSignIn} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="signin-email">Email</Label>
+                <Label htmlFor="signin-email" className="text-xs font-mono text-slate-300">Institutional Email</Label>
                 <Input
                   id="signin-email"
                   name="email"
                   type="email"
                   placeholder="you@institute.edu"
                   autoComplete="email"
+                  className="h-10 bg-white/[0.03] border-white/10 focus:border-cyan-400/50 rounded-xl text-xs font-mono text-slate-200"
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="signin-password">Password</Label>
+                <Label htmlFor="signin-password" className="text-xs font-mono text-slate-300">Password</Label>
                 <Input
                   id="signin-password"
                   name="password"
                   type="password"
                   placeholder="••••••••"
                   autoComplete="current-password"
+                  className="h-10 bg-white/[0.03] border-white/10 focus:border-cyan-400/50 rounded-xl text-xs font-mono text-slate-200"
                   required
                 />
               </div>
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
-                {isSubmitting ? 'Signing in…' : 'Sign In'}
+              {error && <p className="text-xs text-red-400 font-mono bg-red-500/10 p-2.5 rounded-lg border border-red-500/20">{error}</p>}
+              <Button type="submit" className="w-full h-11 text-xs font-mono font-bold bg-gradient-to-r from-cyan-400 to-purple-500 text-slate-950 hover:from-cyan-300 hover:to-purple-400 shadow-glow-cyan rounded-xl" size="lg" disabled={isSubmitting}>
+                {isSubmitting ? 'Authenticating…' : 'Sign In'}
               </Button>
             </form>
           </TabsContent>
 
-          <TabsContent value="signup" className="mt-4">
+          <TabsContent value="signup" className="mt-5">
             <form onSubmit={handleSignUp} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="signup-name">Full Name</Label>
+                <Label htmlFor="signup-name" className="text-xs font-mono text-slate-300">Full Name</Label>
                 <Input
                   id="signup-name"
                   name="fullName"
                   placeholder="Jane Doe"
                   autoComplete="name"
+                  className="h-10 bg-white/[0.03] border-white/10 focus:border-cyan-400/50 rounded-xl text-xs font-mono text-slate-200"
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="signup-email">Email</Label>
+                <Label htmlFor="signup-email" className="text-xs font-mono text-slate-300">Institutional Email</Label>
                 <Input
                   id="signup-email"
                   name="email"
                   type="email"
                   placeholder="you@institute.edu"
                   autoComplete="email"
+                  className="h-10 bg-white/[0.03] border-white/10 focus:border-cyan-400/50 rounded-xl text-xs font-mono text-slate-200"
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="signup-institute">Institute</Label>
+                <Label htmlFor="signup-institute" className="text-xs font-mono text-slate-300">Accredited Institute</Label>
                 <Select name="institute" value={selectedInstituteId} onValueChange={setSelectedInstituteId}>
-                  <SelectTrigger id="signup-institute">
+                  <SelectTrigger id="signup-institute" className="h-10 bg-white/[0.03] border-white/10 focus:border-cyan-400/50 rounded-xl text-xs font-mono text-slate-200">
                     <SelectValue
                       placeholder={
                         institutes.length === 0
@@ -229,9 +233,9 @@ export function AuthModal({ open, onOpenChange, defaultTab = 'signin' }: AuthMod
                       }
                     />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-slate-950 border-white/10 text-slate-200 font-mono text-xs rounded-xl">
                     {institutes.map((inst) => (
-                      <SelectItem key={inst.id} value={inst.id}>
+                      <SelectItem key={inst.id} value={inst.id} className="focus:bg-cyan-500/20 focus:text-cyan-300">
                         {inst.name}
                       </SelectItem>
                     ))}
@@ -239,7 +243,7 @@ export function AuthModal({ open, onOpenChange, defaultTab = 'signin' }: AuthMod
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="signup-password">Password</Label>
+                <Label htmlFor="signup-password" className="text-xs font-mono text-slate-300">Password</Label>
                 <Input
                   id="signup-password"
                   name="password"
@@ -247,11 +251,12 @@ export function AuthModal({ open, onOpenChange, defaultTab = 'signin' }: AuthMod
                   placeholder="••••••••"
                   autoComplete="new-password"
                   minLength={8}
+                  className="h-10 bg-white/[0.03] border-white/10 focus:border-cyan-400/50 rounded-xl text-xs font-mono text-slate-200"
                   required
                 />
               </div>
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
+              {error && <p className="text-xs text-red-400 font-mono bg-red-500/10 p-2.5 rounded-lg border border-red-500/20">{error}</p>}
+              <Button type="submit" className="w-full h-11 text-xs font-mono font-bold bg-gradient-to-r from-cyan-400 to-purple-500 text-slate-950 hover:from-cyan-300 hover:to-purple-400 shadow-glow-cyan rounded-xl" size="lg" disabled={isSubmitting}>
                 {isSubmitting ? 'Creating account…' : 'Create Account'}
               </Button>
             </form>

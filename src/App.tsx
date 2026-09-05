@@ -1,4 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
+import { ErrorBoundary } from '@/components/error-boundary';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { Navbar } from '@/components/landing/navbar';
 import { Hero } from '@/components/landing/hero';
@@ -143,9 +144,11 @@ function AppContent() {
 
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

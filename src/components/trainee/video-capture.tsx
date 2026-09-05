@@ -446,7 +446,7 @@ export function VideoCapture({ onBack, onComplete }: VideoCaptureProps) {
       setState('results');
     } catch (err: any) {
       console.error('[executeScoringEngine] Database persistence error:', err);
-      const errMsg = err?.message || 'Database insert failed. Please retry.';
+      const errMsg = "We couldn't save your submission — check your connection and retry";
       setPipelineError(errMsg);
       setProcessingMsg(`Error: ${errMsg}`);
     }

@@ -4,60 +4,60 @@
 
 @layer base {
   :root {
-    --background: 220 30% 98%;
-    --foreground: 222 40% 8%;
-    --card: 0 0% 100%;
-    --card-foreground: 222 40% 8%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 40% 8%;
-    --primary: 184 100% 40%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 218 25% 93%;
-    --secondary-foreground: 222 40% 8%;
-    --muted: 218 25% 93%;
-    --muted-foreground: 218 15% 45%;
-    --accent: 41 55% 51%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 75% 55%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 218 25% 86%;
-    --input: 218 25% 86%;
-    --ring: 184 100% 40%;
-    --radius: 0.375rem;
+    --background: 224 50% 5%;       /* Deep Void #070a12 */
+    --foreground: 214 32% 95%;       /* Crisp White #f1f5f9 */
+    --card: 222 47% 10%;             /* Dark Glass Panel */
+    --card-foreground: 214 32% 95%;
+    --popover: 222 47% 9%;
+    --popover-foreground: 214 32% 95%;
+    --primary: 184 100% 50%;         /* Electric Laser Cyan #00f0ff */
+    --primary-foreground: 224 50% 5%;
+    --secondary: 224 40% 14%;
+    --secondary-foreground: 214 32% 95%;
+    --muted: 223 35% 15%;
+    --muted-foreground: 215 20% 65%; /* Muted Slate #94a3b8 */
+    --accent: 271 91% 65%;           /* Electric Violet #a855f7 */
+    --accent-foreground: 214 32% 95%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 214 32% 95%;
+    --border: 224 35% 16%;
+    --input: 224 35% 16%;
+    --ring: 184 100% 50%;
+    --radius: 0.75rem;
 
-    --chart-1: 184 100% 40%;
-    --chart-2: 41 55% 51%;
-    --chart-3: 160 84% 38%;
-    --chart-4: 0 75% 55%;
-    --chart-5: 262 83% 58%;
+    --chart-1: 184 100% 50%;
+    --chart-2: 271 91% 65%;
+    --chart-3: 38 92% 50%;
+    --chart-4: 160 84% 45%;
+    --chart-5: 0 84% 60%;
   }
 
   .dark {
-    --background: 222 40% 6%;       /* Basalt Void #090d15 */
-    --foreground: 215 35% 96%;       /* Porcelain #f1f5fb */
-    --card: 222 36% 11%;             /* Steel Panel #121927 */
-    --card-foreground: 215 35% 96%;
-    --popover: 222 36% 11%;
-    --popover-foreground: 215 35% 96%;
-    --primary: 184 100% 50%;         /* Laser Cyan #00f0ff */
-    --primary-foreground: 222 40% 6%;
-    --secondary: 220 30% 15%;        /* Darker Steel */
-    --secondary-foreground: 215 35% 96%;
-    --muted: 220 30% 15%;
-    --muted-foreground: 216 16% 59%; /* Slate Text #8494ab */
-    --accent: 41 55% 51%;            /* Gilt Brass #c89b3c */
-    --accent-foreground: 222 40% 6%;
-    --destructive: 0 70% 50%;
-    --destructive-foreground: 215 35% 96%;
-    --border: 220 35% 19%;           /* Hairline Grid #202c42 */
-    --input: 220 35% 19%;
+    --background: 224 50% 5%;
+    --foreground: 214 32% 95%;
+    --card: 222 47% 10%;
+    --card-foreground: 214 32% 95%;
+    --popover: 222 47% 9%;
+    --popover-foreground: 214 32% 95%;
+    --primary: 184 100% 50%;
+    --primary-foreground: 224 50% 5%;
+    --secondary: 224 40% 14%;
+    --secondary-foreground: 214 32% 95%;
+    --muted: 223 35% 15%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 271 91% 65%;
+    --accent-foreground: 214 32% 95%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 214 32% 95%;
+    --border: 224 35% 16%;
+    --input: 224 35% 16%;
     --ring: 184 100% 50%;
 
     --chart-1: 184 100% 50%;
-    --chart-2: 41 55% 51%;
-    --chart-3: 160 84% 45%;
-    --chart-4: 0 70% 50%;
-    --chart-5: 262 83% 58%;
+    --chart-2: 271 91% 65%;
+    --chart-3: 38 92% 50%;
+    --chart-4: 160 84% 45%;
+    --chart-5: 0 84% 60%;
   }
 }
 
@@ -71,7 +71,7 @@
     -moz-osx-font-smoothing: grayscale;
   }
   h1, h2, h3, h4, h5, h6 {
-    @apply font-headline tracking-normal;
+    @apply font-headline tracking-tight;
   }
   html {
     scroll-behavior: smooth;
@@ -88,30 +88,44 @@
   }
   .bg-grid {
     background-image:
-      linear-gradient(to right, hsl(var(--border) / 0.4) 1px, transparent 1px),
-      linear-gradient(to bottom, hsl(var(--border) / 0.4) 1px, transparent 1px);
+      linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
     background-size: 32px 32px;
   }
   .bg-dots {
-    background-image: radial-gradient(hsl(var(--border) / 0.6) 1px, transparent 1px);
-    background-size: 16px 16px;
+    background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+    background-size: 20px 20px;
   }
-  /* Architectural hairline instrument panel */
-  .instrument-panel {
-    background-color: #121927;
-    border: 1px solid #202c42;
-    border-radius: 0.375rem;
+  .glass-panel {
+    background: rgba(13, 20, 36, 0.65);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
   }
-  /* Explicit Laser Cyan focus ring — WCAG-AA keyboard navigation */
-  .focus-visible\:ring-laser:focus-visible {
-    outline: 2px solid #00f0ff;
-    outline-offset: 2px;
+  .glass-card {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%), rgba(13, 20, 36, 0.7);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.09);
   }
-  /* Convenience semantic ring override */
-  :focus-visible {
-    outline: 2px solid hsl(var(--ring));
-    outline-offset: 2px;
-    border-radius: 2px;
+  .glass-card:hover {
+    border-color: rgba(0, 240, 255, 0.3);
+    box-shadow: 0 10px 30px -10px rgba(0, 240, 255, 0.15);
+  }
+  .ambient-glow-cyan {
+    background: radial-gradient(circle at center, rgba(0, 240, 255, 0.18) 0%, transparent 70%);
+  }
+  .ambient-glow-violet {
+    background: radial-gradient(circle at center, rgba(168, 85, 247, 0.18) 0%, transparent 70%);
+  }
+  .ambient-glow-amber {
+    background: radial-gradient(circle at center, rgba(245, 158, 11, 0.15) 0%, transparent 70%);
+  }
+  .text-gradient-cyan-violet {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-[#00f0ff] via-[#818cf8] to-[#c084fc];
+  }
+  .text-gradient-amber-ember {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-[#fbbf24] via-[#f59e0b] to-[#f97316];
   }
 }
 

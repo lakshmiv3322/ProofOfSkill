@@ -102,6 +102,7 @@ export function EvaluationPage({ submissionId = 'sub-010', onBack }: EvaluationP
   const { db, activeUser } = useApp();
   const [showOverride, setShowOverride] = useState(false);
   const [savedOverrides, setSavedOverrides] = useState<Record<string, number>>({});
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const handleOverrideSave = (criterionId: string, newScore: number) => {
     setSavedOverrides((prev) => ({ ...prev, [criterionId]: newScore }));
@@ -114,6 +115,63 @@ export function EvaluationPage({ submissionId = 'sub-010', onBack }: EvaluationP
   }, 0);
 
   const hasOverrides = Object.keys(savedOverrides).length > 0;
+
+  const handleApprove = async () => {
+    setSaveError(null);
+    const verificationCode = `POS-CPR-2026-${Math.floor(Math.random() * 899 + 100)}AH`;
+    const certId = `cert-${crypto.randomUUID()}`;
+
+    try {
+      // 1. Insert real Certificate record in Supabase
+      const certRow = {
+        id: certId,
+        institute_id: activeUser.institute_id,
+        submission_id: submissionId,
+        trainee_id: activeUser.id,
+        trade_id: 'trade-cpr',
+        verification_code: verificationCode,
+        status: 'active',
+        issued_at: new Date().toISOString(),
+        issued_by: activeUser.id,
+        overall_score: effectiveScore,
+        pdf_url: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error: certErr } = await (db as any).from('certificates').insert(certRow);
+      if (certErr) throw certErr;
+
+      // 2. Update Submission status
+      const { error: subErr } = await (db as any)
+        .from('submissions')
+        .update({ status: 'certified', reviewed_at: new Date().toISOString() })
+        .eq('id', submissionId);
+      if (subErr) throw subErr;
+
+      // 3. Write Audit Log
+      await logAudit({
+        institute_id: activeUser.institute_id,
+        actor_id: activeUser.id,
+        actor_role: activeUser.role,
+        action: 'certificate.issued',
+        entity_type: 'certificate',
+        entity_id: certId,
+        metadata: {
+          submission_id: submissionId,
+          verification_code: verificationCode,
+          overall_score: effectiveScore,
+          state_before: { submission_status: 'under_review' },
+          state_after: { submission_status: 'certified', certificate_id: certId, verification_code: verificationCode },
+        },
+        ip_address: null,
+      });
+      onBack();
+    } catch (err: any) {
+      console.error('[EvaluationPage] Certificate issue notice:', err);
+      setSaveError("We couldn't save your submission — check your connection and retry");
+    }
+  };
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
@@ -296,61 +354,17 @@ export function EvaluationPage({ submissionId = 'sub-010', onBack }: EvaluationP
         >
           Override AI Score
         </Button>
+        {saveError && (
+          <div className="flex flex-col gap-2 p-3 bg-destructive/5 border border-destructive/20 rounded-md">
+            <p className="text-xs text-destructive font-mono">{saveError}</p>
+            <Button size="sm" variant="outline" onClick={handleApprove} className="w-fit self-start h-7 text-xs">
+              Retry
+            </Button>
+          </div>
+        )}
         <Button
           className="ml-auto bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
-          onClick={async () => {
-            const verificationCode = `POS-CPR-2026-${Math.floor(Math.random() * 899 + 100)}AH`;
-            const certId = `cert-${crypto.randomUUID()}`;
-
-            try {
-              // 1. Insert real Certificate record in Supabase
-              const certRow = {
-                id: certId,
-                institute_id: activeUser.institute_id,
-                submission_id: submissionId,
-                trainee_id: activeUser.id,
-                trade_id: 'trade-cpr',
-                verification_code: verificationCode,
-                status: 'active',
-                issued_at: new Date().toISOString(),
-                issued_by: activeUser.id,
-                overall_score: effectiveScore,
-                pdf_url: null,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              };
-
-              await (db as any).from('certificates').insert(certRow);
-
-              // 2. Update Submission status
-              await (db as any)
-                .from('submissions')
-                .update({ status: 'certified', reviewed_at: new Date().toISOString() })
-                .eq('id', submissionId);
-
-              // 3. Write Audit Log
-              await logAudit({
-                institute_id: activeUser.institute_id,
-                actor_id: activeUser.id,
-                actor_role: activeUser.role,
-                action: 'certificate.issued',
-                entity_type: 'certificate',
-                entity_id: certId,
-                metadata: {
-                  submission_id: submissionId,
-                  verification_code: verificationCode,
-                  overall_score: effectiveScore,
-                  state_before: { submission_status: 'under_review' },
-                  state_after: { submission_status: 'certified', certificate_id: certId, verification_code: verificationCode },
-                },
-                ip_address: null,
-              });
-            } catch (err: any) {
-              console.error('[EvaluationPage] Certificate issue notice:', err);
-            }
-
-            onBack();
-          }}
+          onClick={handleApprove}
         >
           Approve & Issue Certificate
         </Button>

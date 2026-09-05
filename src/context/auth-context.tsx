@@ -131,39 +131,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (!error) return { error: null };
 
-        // Fallback demo session when Supabase is unconfigured or unreachable
-        const demoUser: User = {
-          id: '00000000-0000-0000-0000-000000000002',
-          auth_id: '00000000-0000-0000-0000-000000000002',
-          institute_id: '00000000-0000-0000-0000-000000000001',
-          email: email || 'sarah.chen@apex.edu',
-          full_name: 'Sarah Chen',
-          role: 'trainee',
-          avatar_url: null,
-          is_active: true,
-          last_login_at: new Date().toISOString(),
-          metadata: {},
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        setUser(demoUser);
-        return { error: null };
-      } catch {
-        setUser({
-          id: '00000000-0000-0000-0000-000000000002',
-          auth_id: '00000000-0000-0000-0000-000000000002',
-          institute_id: '00000000-0000-0000-0000-000000000001',
-          email: email || 'sarah.chen@apex.edu',
-          full_name: 'Sarah Chen',
-          role: 'trainee',
-          avatar_url: null,
-          is_active: true,
-          last_login_at: new Date().toISOString(),
-          metadata: {},
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-        return { error: null };
+        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+          // Fallback demo session when Supabase is unconfigured or unreachable
+          const demoUser: User = {
+            id: '00000000-0000-0000-0000-000000000002',
+            auth_id: '00000000-0000-0000-0000-000000000002',
+            institute_id: '00000000-0000-0000-0000-000000000001',
+            email: email || 'sarah.chen@apex.edu',
+            full_name: 'Sarah Chen',
+            role: 'trainee',
+            avatar_url: null,
+            is_active: true,
+            last_login_at: new Date().toISOString(),
+            metadata: {},
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          setUser(demoUser);
+          return { error: null };
+        }
+
+        return { error: error.message };
+      } catch (err: any) {
+        if (err?.message?.includes('Failed to fetch') || err?.message?.includes('NetworkError')) {
+          setUser({
+            id: '00000000-0000-0000-0000-000000000002',
+            auth_id: '00000000-0000-0000-0000-000000000002',
+            institute_id: '00000000-0000-0000-0000-000000000001',
+            email: email || 'sarah.chen@apex.edu',
+            full_name: 'Sarah Chen',
+            role: 'trainee',
+            avatar_url: null,
+            is_active: true,
+            last_login_at: new Date().toISOString(),
+            metadata: {},
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+          return { error: null };
+        }
+        return { error: err?.message || 'An unexpected error occurred.' };
       }
     },
     []
@@ -191,39 +198,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
         if (!error) return { error: null };
 
-        // Fallback demo user creation when Supabase is unconfigured or unreachable
-        const newUser: User = {
-          id: `user-${crypto.randomUUID()}`,
-          auth_id: `auth-${crypto.randomUUID()}`,
-          institute_id: institute_id || '00000000-0000-0000-0000-000000000001',
-          email,
-          full_name: full_name || 'Trainee User',
-          role,
-          avatar_url: null,
-          is_active: true,
-          last_login_at: new Date().toISOString(),
-          metadata: {},
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        setUser(newUser);
-        return { error: null };
-      } catch {
-        setUser({
-          id: `user-${crypto.randomUUID()}`,
-          auth_id: `auth-${crypto.randomUUID()}`,
-          institute_id: institute_id || '00000000-0000-0000-0000-000000000001',
-          email,
-          full_name: full_name || 'Trainee User',
-          role,
-          avatar_url: null,
-          is_active: true,
-          last_login_at: new Date().toISOString(),
-          metadata: {},
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-        return { error: null };
+        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+          // Fallback demo user creation when Supabase is unconfigured or unreachable
+          const newUser: User = {
+            id: `user-${crypto.randomUUID()}`,
+            auth_id: `auth-${crypto.randomUUID()}`,
+            institute_id: institute_id || '00000000-0000-0000-0000-000000000001',
+            email,
+            full_name: full_name || 'Trainee User',
+            role,
+            avatar_url: null,
+            is_active: true,
+            last_login_at: new Date().toISOString(),
+            metadata: {},
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          setUser(newUser);
+          return { error: null };
+        }
+
+        return { error: error.message };
+      } catch (err: any) {
+        if (err?.message?.includes('Failed to fetch') || err?.message?.includes('NetworkError')) {
+          setUser({
+            id: `user-${crypto.randomUUID()}`,
+            auth_id: `auth-${crypto.randomUUID()}`,
+            institute_id: institute_id || '00000000-0000-0000-0000-000000000001',
+            email,
+            full_name: full_name || 'Trainee User',
+            role,
+            avatar_url: null,
+            is_active: true,
+            last_login_at: new Date().toISOString(),
+            metadata: {},
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+          return { error: null };
+        }
+        return { error: err?.message || 'An unexpected error occurred.' };
       }
     },
     []

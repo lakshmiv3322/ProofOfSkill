@@ -1,7 +1,6 @@
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Check, Zap } from 'lucide-react';
+import { Check, Sparkles, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface PricingProps {
@@ -13,7 +12,7 @@ const tiers = [
     name: 'Starter',
     price: '$99',
     period: '/month',
-    description: 'For trade classrooms establishing biometric kinematics and digital assessment.',
+    description: 'For specialized trade classrooms establishing digital kinematic verification.',
     features: [
       'Up to 50 active trainees',
       'Up to 2 certified trades',
@@ -29,15 +28,15 @@ const tiers = [
     name: 'Growth',
     price: '$399',
     period: '/month',
-    description: 'For vocational institutes scaling multi-trade assessments across departments.',
+    description: 'For accredited vocational institutes scaling multi-trade assessments across departments.',
     features: [
       'Up to 500 active trainees',
       'Unlimited trade rubrics',
       'BlazePose + DTW kinematics engine',
       '10 assessor seats',
-      'AI coaching narrative layer',
+      'AI coaching telemetry layer',
       'Multi-tenant institutional analytics',
-      'Automated SHA-256 PDF certificates',
+      'Automated SHA-256 PDF credentials',
       'Transparent appeals workflow',
       'Priority technical support',
     ],
@@ -55,7 +54,7 @@ const tiers = [
       'Dedicated Edge Function runners',
       'Unlimited assessor & admin seats',
       'SSO & SAML integration',
-      'LMS & Student Information System API',
+      'LMS & SIS programmatic API',
       'Custom institutional certificate templates',
       'Dedicated compliance manager',
       '24/7 SLA & on-premise options',
@@ -67,81 +66,87 @@ const tiers = [
 
 export function Pricing({ onAuthClick }: PricingProps) {
   return (
-    <section id="pricing" className="relative bg-slate-950/40 py-24 sm:py-32 border-t border-slate-800/80">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <section id="pricing" className="relative bg-[#05070e] py-28 sm:py-36 border-t border-white/5 overflow-hidden">
+      {/* Background ambient lighting */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] ambient-glow-violet blur-[180px] pointer-events-none" />
+
+      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl text-white">
-            Transparent institutional <span className="text-emerald-400">pricing</span>
+          <h2 className="text-3xl font-headline font-bold tracking-tight sm:text-5xl text-white">
+            Transparent institutional <span className="text-gradient-cyan-violet">licensing</span>
           </h2>
-          <p className="mt-4 text-base sm:text-lg text-slate-400">
+          <p className="mt-4 text-base sm:text-lg text-slate-300">
             Predictable per-institute licensing. All plans include PostgreSQL row-level security and immutable audit logging.
           </p>
         </div>
 
-        <div className="mt-16 grid grid-cols-1 gap-8 lg:grid-cols-3 lg:items-start">
+        <div className="mt-20 grid grid-cols-1 gap-8 lg:grid-cols-3 lg:items-stretch">
           {tiers.map((tier) => (
-            <Card
+            <div
               key={tier.name}
               className={cn(
-                'relative flex flex-col transition-all duration-300 hud-border bg-slate-900/60',
+                'relative flex flex-col justify-between rounded-3xl p-8 transition-all duration-300',
                 tier.highlighted
-                  ? 'border-2 border-emerald-500 shadow-2xl shadow-emerald-950/40 lg:scale-105 bg-slate-900/90'
-                  : 'border border-slate-800 hover:border-slate-700 hover:shadow-lg'
+                  ? 'glass-card border-cyan-500/40 shadow-glow-cyan lg:scale-105 bg-slate-900/80 z-10'
+                  : 'glass-panel border-white/10 hover:border-white/20'
               )}
             >
               {tier.highlighted && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <Badge className="gap-1 bg-emerald-500 text-slate-950 font-bold font-mono text-[10px] shadow-lg">
+                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                  <Badge className="gap-1.5 bg-gradient-to-r from-cyan-400 to-purple-500 text-slate-950 font-bold font-mono text-[10px] px-3 py-1 rounded-full shadow-lg border-0">
+                    <Sparkles className="h-3 w-3" />
                     Recommended for Institutes
                   </Badge>
                 </div>
               )}
 
-              <CardHeader className="pb-4">
-                <CardTitle className="text-xl text-white font-display">{tier.name}</CardTitle>
-                <CardDescription className="text-xs text-slate-400 min-h-[2.5rem] leading-relaxed">
-                  {tier.description}
-                </CardDescription>
-                <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-4xl font-extrabold tracking-tight text-white font-serif">{tier.price}</span>
-                  <span className="text-xs font-mono text-slate-400">{tier.period}</span>
+              <div>
+                <div className="pb-4">
+                  <h3 className="text-xl font-headline font-bold text-white">{tier.name}</h3>
+                  <p className="text-xs text-slate-400 mt-2 min-h-[2.5rem] leading-relaxed">
+                    {tier.description}
+                  </p>
+                  <div className="mt-6 flex items-baseline gap-1.5">
+                    <span className="text-4xl font-headline font-extrabold tracking-tight text-white">{tier.price}</span>
+                    <span className="text-xs font-mono text-slate-400">{tier.period}</span>
+                  </div>
                 </div>
-              </CardHeader>
 
-              <CardContent className="flex-1">
-                <ul className="space-y-3">
-                  {tier.features.map((feature) => (
-                    <li key={feature} className="flex items-start gap-2.5 text-xs">
-                      <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400">
-                        <Check className="h-3 w-3" />
-                      </div>
-                      <span className="text-slate-300 leading-relaxed">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
+                <div className="pt-4 border-t border-white/5">
+                  <ul className="space-y-3.5">
+                    {tier.features.map((feature) => (
+                      <li key={feature} className="flex items-start gap-3 text-xs">
+                        <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                          <Check className="h-2.5 w-2.5" />
+                        </div>
+                        <span className="text-slate-300 leading-relaxed">{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
 
-              <CardFooter className="pt-4">
+              <div className="pt-8">
                 <Button
                   className={cn(
-                    'w-full text-xs font-semibold',
+                    'w-full text-xs font-mono font-bold h-11 rounded-xl transition-all',
                     tier.highlighted
-                      ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20'
-                      : 'border-slate-700 bg-slate-800 hover:bg-slate-700 text-white'
+                      ? 'bg-gradient-to-r from-cyan-400 to-purple-500 text-slate-950 hover:from-cyan-300 hover:to-purple-400 shadow-glow-cyan'
+                      : 'border-white/10 bg-white/[0.04] hover:bg-white/[0.08] text-slate-200'
                   )}
                   size="lg"
                   variant={tier.highlighted ? 'default' : 'outline'}
                   onClick={() => onAuthClick('signup')}
                 >
-                  <Zap className="mr-2 h-3.5 w-3.5" />
+                  <Zap className="mr-2 h-3.5 w-3.5 fill-current" />
                   {tier.cta}
                 </Button>
-              </CardFooter>
-            </Card>
+              </div>
+            </div>
           ))}
         </div>
 
-        <p className="mt-10 text-center text-xs text-slate-500 font-mono">
+        <p className="mt-12 text-center text-xs text-slate-400 font-mono">
           All tiers include zero raw video storage compliance, multi-tenant row-level security, and audit ledger immutability.
         </p>
       </div>

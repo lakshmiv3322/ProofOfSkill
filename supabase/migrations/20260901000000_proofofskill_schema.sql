@@ -96,17 +96,6 @@ create policy "institutes: authenticated read all active"
   to authenticated
   using (is_active = true);
 
-create policy "institutes: platform_admin full access"
-  on institutes for all
-  to authenticated
-  using (
-    exists (
-      select 1 from users
-      where users.auth_id = auth.uid()
-        and users.role = 'platform_admin'
-    )
-  );
-
 -- ─────────────────────────────────────────────────────────────
 -- TABLE: users
 -- ─────────────────────────────────────────────────────────────
@@ -185,6 +174,18 @@ create policy "users: insert own on signup"
   on users for insert
   to authenticated
   with check (auth_id = auth.uid());
+
+-- Platform admins can manage institutes
+create policy "institutes: platform_admin full access"
+  on institutes for all
+  to authenticated
+  using (
+    exists (
+      select 1 from users
+      where users.auth_id = auth.uid()
+        and users.role = 'platform_admin'
+    )
+  );
 
 -- ─────────────────────────────────────────────────────────────
 -- TABLE: trades

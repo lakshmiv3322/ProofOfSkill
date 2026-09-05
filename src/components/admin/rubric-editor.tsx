@@ -39,6 +39,7 @@ export function RubricEditor() {
   const [selectedRubricId, setSelectedRubricId] = useState<string>('');
   const [jsonText, setJsonText] = useState<string>('');
   const [parseError, setParseError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -105,12 +106,14 @@ export function RubricEditor() {
 
   const handleSave = async () => {
     if (parseError || !selectedRubric) return;
+    setSaveError(null);
     try {
       const config = JSON.parse(jsonText) as Rubric['config'];
       const previousConfig = selectedRubric.config;
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (db as any).from('rubrics').update({ config }).eq('id', selectedRubricId);
+      const { error: updateError } = await (db as any).from('rubrics').update({ config }).eq('id', selectedRubricId);
+      if (updateError) throw updateError;
 
       // Log immutable enterprise audit event
       await logAudit({
@@ -131,8 +134,9 @@ export function RubricEditor() {
 
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
-    } catch {
-      setParseError('Failed to save — invalid JSON structure.');
+    } catch (err: any) {
+      console.error('[RubricEditor] update error:', err);
+      setSaveError("We couldn't save your submission — check your connection and retry");
     }
   };
 
@@ -241,6 +245,15 @@ export function RubricEditor() {
             <p className="text-xs text-destructive font-mono bg-destructive/5 border border-destructive/20 rounded-md px-3 py-2">
               {parseError}
             </p>
+          )}
+
+          {saveError && (
+            <div className="flex flex-col gap-2 p-3 bg-destructive/5 border border-destructive/20 rounded-md">
+              <p className="text-xs text-destructive font-mono">{saveError}</p>
+              <Button size="sm" variant="outline" onClick={handleSave} className="w-fit self-start h-7 text-xs">
+                Retry
+              </Button>
+            </div>
           )}
 
           <div className="flex gap-2">

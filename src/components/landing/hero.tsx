@@ -4,8 +4,12 @@ import {
   ShieldCheck,
   Activity,
   Play,
+  Pause,
   Zap,
   Sliders,
+  Sparkles,
+  Layers,
+  Cpu,
 } from 'lucide-react';
 
 interface HeroProps {
@@ -45,12 +49,17 @@ export function Hero({ onAuthClick }: HeroProps) {
 
       ctx.clearRect(0, 0, w, h);
 
-      // Split viewport: Left = Trainee (Laser Cyan), Right = Reference (Gilt Brass)
+      // Split viewport: Left = Trainee (Electric Cyan), Right = Reference (Electric Violet/Amber)
       const halfW = w / 2;
 
-      // Divider line
-      ctx.strokeStyle = '#202c42';
-      ctx.lineWidth = 1;
+      // Center laser divider
+      const gradient = ctx.createLinearGradient(halfW, 0, halfW, h);
+      gradient.addColorStop(0, 'rgba(0, 240, 255, 0.05)');
+      gradient.addColorStop(0.5, 'rgba(0, 240, 255, 0.4)');
+      gradient.addColorStop(1, 'rgba(168, 85, 247, 0.05)');
+
+      ctx.strokeStyle = gradient;
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.moveTo(halfW, 0);
       ctx.lineTo(halfW, h);
@@ -59,7 +68,7 @@ export function Hero({ onAuthClick }: HeroProps) {
       const phase = isPlaying ? (elapsed % CPR_PERIOD_MS) / CPR_PERIOD_MS : 0.2;
       const compress = Math.max(0, Math.sin(phase * Math.PI));
 
-      // Draw Trainee Skeleton (Left, Laser Cyan #00f0ff)
+      // Draw Trainee Skeleton (Left, Electric Laser Cyan)
       drawComparatorSkeleton(
         ctx,
         halfW * 0.5,
@@ -68,12 +77,12 @@ export function Hero({ onAuthClick }: HeroProps) {
         h * 0.65,
         compress * 0.95,
         '#00f0ff',
-        'rgba(0, 240, 255, 0.9)',
-        'rgba(0, 240, 255, 0.25)',
-        'TRAINEE: LIVE OPTICAL STREAM'
+        '#38bdf8',
+        'rgba(0, 240, 255, 0.4)',
+        'LIVE BLAZEPOSE STREAM'
       );
 
-      // Draw Reference Exemplar Skeleton (Right, Gilt Brass #c89b3c)
+      // Draw Reference Exemplar Skeleton (Right, Electric Violet / Amber)
       drawComparatorSkeleton(
         ctx,
         halfW + halfW * 0.5,
@@ -81,10 +90,10 @@ export function Hero({ onAuthClick }: HeroProps) {
         halfW * 0.7,
         h * 0.65,
         compress,
-        '#c89b3c',
-        'rgba(200, 155, 60, 0.9)',
-        'rgba(200, 155, 60, 0.25)',
-        'CERTIFIED EXEMPLAR: ref-002'
+        '#c084fc',
+        '#f59e0b',
+        'rgba(192, 132, 252, 0.4)',
+        'CERTIFIED EXEMPLAR MODEL'
       );
 
       animId = requestAnimationFrame(render);
@@ -107,46 +116,51 @@ export function Hero({ onAuthClick }: HeroProps) {
   }, [isPlaying]);
 
   return (
-    <section className="relative overflow-hidden pt-24 pb-20 sm:pt-32 sm:pb-28">
-      {/* Precision grid background */}
-      <div className="absolute inset-0 bg-grid opacity-30 pointer-events-none" />
+    <section className="relative overflow-hidden pt-28 pb-24 sm:pt-36 sm:pb-32">
+      {/* Radiant ambient glow spheres */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] ambient-glow-cyan blur-[130px] pointer-events-none" />
+      <div className="absolute top-1/3 right-10 w-[450px] h-[450px] ambient-glow-violet blur-[140px] pointer-events-none" />
+      <div className="absolute inset-0 bg-grid opacity-20 pointer-events-none" />
 
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         
-        {/* Editorial Heading Section */}
-        <div className="max-w-3xl mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300 font-mono text-xs mb-5">
-            <span className="h-2 w-2 rounded-full bg-laser animate-ping" />
-            <span>Standard: AHA-CPR-2026-v2</span>
-            <span className="text-slate-600">|</span>
-            <span className="text-brass">Registry Protocol: POS-v2</span>
+        {/* Main Header Presentation */}
+        <div className="max-w-3xl mb-14">
+          <div className="inline-flex items-center gap-2.5 px-3 py-1 rounded-full bg-white/[0.04] border border-white/10 text-slate-300 font-mono text-xs mb-6 backdrop-blur-md shadow-inner">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500" />
+            </span>
+            <span className="text-cyan-300 font-semibold">Standard: AHA-CPR-2026</span>
+            <span className="text-slate-600">/</span>
+            <span className="text-amber-400">Deterministic DTW Engine</span>
           </div>
 
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-headline font-bold text-porcelain tracking-tight leading-[1.08]">
-            Biometric proof of practical skill. Validated against reference standards.
+          <h1 className="text-4xl sm:text-6xl font-headline font-extrabold text-white tracking-tight leading-[1.06]">
+            Objective skill verification, <span className="text-gradient-cyan-violet">proven by vision AI</span>.
           </h1>
 
-          <p className="mt-5 text-base sm:text-lg text-slateText leading-relaxed font-sans max-w-2xl">
-            ProofOfSkill watches physical human motion with client-side BlazePose, runs deterministic Dynamic Time Warping against certified exemplar clips, and issues verifiable credentials.
+          <p className="mt-6 text-base sm:text-lg text-slate-300 leading-relaxed font-sans max-w-2xl">
+            ProofOfSkill translates human movement into mathematical certainty. Real-time BlazePose pose estimation aligned deterministically with dynamic time warping against accredited gold standards.
           </p>
 
-          <div className="mt-8 flex flex-wrap items-center gap-4">
+          <div className="mt-9 flex flex-wrap items-center gap-4">
             <Button
               size="lg"
-              className="h-11 px-6 text-xs font-mono font-semibold bg-laser text-basalt hover:bg-cyan-300 border border-laser/40 shadow-sm"
+              className="h-12 px-7 text-xs font-mono font-bold bg-gradient-to-r from-cyan-400 via-sky-400 to-purple-500 text-slate-950 hover:from-cyan-300 hover:to-purple-400 shadow-glow-cyan border-0 rounded-xl transition-all hover:scale-[1.02]"
               onClick={() => onAuthClick('signup')}
             >
-              <Zap className="mr-2 h-4 w-4" />
-              Launch Live Assessment
+              <Zap className="mr-2 h-4 w-4 fill-current" />
+              Start Live Assessment
             </Button>
             <Button
               variant="outline"
               size="lg"
-              className="h-11 px-5 text-xs font-mono border-hairline bg-steel hover:bg-slate-800 text-slate-200"
+              className="h-12 px-6 text-xs font-mono border-white/10 bg-white/[0.03] hover:bg-white/[0.08] text-slate-200 rounded-xl backdrop-blur-md transition-all"
               asChild
             >
               <a href="#demo-report">
-                <Sliders className="mr-2 h-4 w-4 text-brass" />
+                <Sliders className="mr-2 h-4 w-4 text-amber-400" />
                 Inspect Calibration Ledger
               </a>
             </Button>
@@ -154,90 +168,101 @@ export function Hero({ onAuthClick }: HeroProps) {
         </div>
 
         {/* ── THE SIGNATURE HERO MOMENT: Dual-Skeleton Optical Comparator ── */}
-        <div className="rounded-md border border-hairline bg-steel overflow-hidden shadow-2xl">
+        <div className="relative rounded-2xl border border-white/10 bg-slate-950/70 backdrop-blur-2xl overflow-hidden shadow-glass">
           
           {/* Terminal Instrument Header */}
-          <div className="flex flex-wrap items-center justify-between px-4 py-2.5 bg-slate-950 border-b border-hairline text-xs font-mono text-slateText">
+          <div className="flex flex-wrap items-center justify-between px-5 py-3.5 bg-slate-950/90 border-b border-white/10 text-xs font-mono text-slate-400">
             <div className="flex items-center gap-3">
-              <span className="text-porcelain font-semibold flex items-center gap-1.5">
-                <Activity className="h-3.5 w-3.5 text-laser" />
-                OPTICAL DUAL-COMPARATOR TERMINAL
+              <div className="flex items-center gap-2 text-white font-semibold">
+                <Activity className="h-4 w-4 text-cyan-400" />
+                <span>OPTICAL DUAL-COMPARATOR ENGINE</span>
+              </div>
+              <span className="text-slate-600 hidden sm:inline">|</span>
+              <span className="text-cyan-400/80 hidden sm:inline flex items-center gap-1">
+                <Cpu className="h-3 w-3" />
+                30.0 FPS · 33 Keypoints
               </span>
-              <span className="text-slate-600 hidden sm:inline">/</span>
-              <span className="text-slate-400 hidden sm:inline">FPS: 30.0 · 33 Keypoints</span>
             </div>
 
-            <div className="flex items-center gap-3">
-              <span className="text-laser font-bold">DTW Alignment: {dtwAlignment}%</span>
+            <div className="flex items-center gap-4">
+              <span className="text-cyan-300 font-bold drop-shadow-[0_0_8px_rgba(0,240,255,0.4)]">
+                DTW Alignment: {dtwAlignment}%
+              </span>
               <span className="text-slate-600">|</span>
-              <span className="text-brass font-bold">Tolerance: ±5%</span>
+              <span className="text-amber-400 font-bold">Tolerance: ±5.0%</span>
             </div>
           </div>
 
           {/* Optical Canvas Viewport */}
-          <div className="relative aspect-[16/9] sm:aspect-[21/9] w-full bg-basalt flex items-center justify-center">
+          <div className="relative aspect-[16/9] sm:aspect-[21/9] w-full bg-[#05070e] flex items-center justify-center overflow-hidden">
             <canvas
               ref={canvasRef}
               className="absolute inset-0 w-full h-full pointer-events-none"
             />
 
-            {/* Left Telemetry Box (Trainee Laser Cyan) */}
-            <div className="absolute bottom-4 left-4 p-3 rounded bg-slate-950/85 border border-hairline text-left font-mono text-[11px] space-y-1 backdrop-blur-sm z-10">
-              <div className="text-laser font-bold mb-1">TRAINEE MEASUREMENT</div>
-              <div className="text-slateText">Rate: <span className="text-porcelain font-semibold">{traineeBpm} BPM</span></div>
-              <div className="text-slateText">Depth: <span className="text-porcelain font-semibold">{traineeDepth} cm</span></div>
-              <div className="text-slateText">Lock Angle: <span className="text-porcelain font-semibold">{armAngle}°</span></div>
+            {/* Left Telemetry Card (Trainee Live Stream) */}
+            <div className="absolute bottom-5 left-5 p-4 rounded-xl glass-panel text-left font-mono text-xs space-y-1.5 z-10 shadow-lg border-cyan-500/20">
+              <div className="text-cyan-400 font-bold mb-1 flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping" />
+                TRAINEE TELEMETRY
+              </div>
+              <div className="text-slate-400">Rate: <span className="text-white font-semibold">{traineeBpm} BPM</span></div>
+              <div className="text-slate-400">Depth: <span className="text-white font-semibold">{traineeDepth} cm</span></div>
+              <div className="text-slate-400">Arm Angle: <span className="text-white font-semibold">{armAngle}°</span></div>
             </div>
 
-            {/* Right Telemetry Box (Reference Gilt Brass) */}
-            <div className="absolute bottom-4 right-4 p-3 rounded bg-slate-950/85 border border-hairline text-right font-mono text-[11px] space-y-1 backdrop-blur-sm z-10">
-              <div className="text-brass font-bold mb-1">CERTIFIED STANDARD</div>
-              <div className="text-slateText">Target Rate: <span className="text-porcelain font-semibold">100–120 BPM</span></div>
-              <div className="text-slateText">Target Depth: <span className="text-porcelain font-semibold">5.0–6.0 cm</span></div>
-              <div className="text-slateText">Target Lock: <span className="text-porcelain font-semibold">180° Vertical</span></div>
+            {/* Right Telemetry Card (Reference Exemplar) */}
+            <div className="absolute bottom-5 right-5 p-4 rounded-xl glass-panel text-right font-mono text-xs space-y-1.5 z-10 shadow-lg border-purple-500/20">
+              <div className="text-purple-400 font-bold mb-1 flex items-center justify-end gap-1.5">
+                EXEMPLAR STANDARD
+                <Layers className="h-3 w-3 text-purple-400" />
+              </div>
+              <div className="text-slate-400">Target Rate: <span className="text-white font-semibold">100–120 BPM</span></div>
+              <div className="text-slate-400">Target Depth: <span className="text-white font-semibold">5.0–6.0 cm</span></div>
+              <div className="text-slate-400">Target Lock: <span className="text-white font-semibold">180° Vertical</span></div>
             </div>
 
             {/* Center Play/Pause Toggle */}
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+            <div className="absolute top-5 left-1/2 -translate-x-1/2 z-10">
               <button
                 onClick={() => setIsPlaying(!isPlaying)}
                 aria-label={isPlaying ? 'Pause Kinematics Animation' : 'Resume Kinematics Animation'}
-                className="px-3 py-1 rounded bg-slate-900/90 border border-hairline text-slate-300 hover:text-white text-xs font-mono transition-colors flex items-center gap-1.5 backdrop-blur-sm focus-visible:ring-laser"
+                className="px-4 py-1.5 rounded-full bg-white/[0.06] border border-white/15 text-slate-200 hover:text-white text-xs font-mono transition-all flex items-center gap-2 backdrop-blur-md hover:bg-white/[0.12] hover:border-cyan-400/40"
               >
-                <Play className="h-3 w-3 text-laser" />
+                {isPlaying ? <Pause className="h-3 w-3 text-cyan-400" /> : <Play className="h-3 w-3 text-cyan-400" />}
                 <span>{isPlaying ? 'Pause Kinematics' : 'Resume Kinematics'}</span>
               </button>
             </div>
           </div>
 
           {/* Terminal Waveform & Verification Footer */}
-          <div className="px-4 py-3 bg-slate-950 border-t border-hairline grid sm:grid-cols-3 gap-4 items-center text-xs font-mono">
-            <div className="text-slateText flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-brass shrink-0" />
-              <span>Double-Signature Audit Protocol Active</span>
+          <div className="px-5 py-3.5 bg-slate-950/90 border-t border-white/10 grid sm:grid-cols-3 gap-4 items-center text-xs font-mono">
+            <div className="text-slate-300 flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-amber-400 shrink-0" />
+              <span>Multi-Signature Ledger Verification</span>
             </div>
 
-            <div className="flex items-center justify-center gap-1" aria-label="Live Telemetry Waveform Signal">
-              <span className="text-[10px] text-slate-500 mr-1">WAVE:</span>
-              {[20, 55, 90, 45, 100, 70, 30, 85, 95, 60, 75, 40, 80, 60, 95].map((h, i) => {
+            <div className="flex items-center justify-center gap-1.5" aria-label="Live Telemetry Waveform Signal">
+              <span className="text-[10px] text-slate-500 mr-1">SIGNAL:</span>
+              {[20, 55, 90, 45, 100, 70, 30, 85, 95, 60, 75, 40, 80, 60, 95, 80, 45].map((h, i) => {
                 const bpmMod = (traineeBpm % 10) * 2;
                 const depthMod = (traineeDepth * 4);
                 const dynamicH = Math.min(100, Math.max(10, h + ((i % 3 === 0) ? bpmMod : -depthMod)));
                 return (
                   <div
                     key={i}
-                    className="w-1 rounded-full bg-laser transition-all duration-300"
+                    className="w-1 rounded-full bg-gradient-to-t from-cyan-500 to-purple-500 transition-all duration-300 shadow-[0_0_6px_rgba(0,240,255,0.4)]"
                     style={{
                       height: `${Math.max(4, (dynamicH * (isPlaying ? 1 : 0.3)) * 0.18)}px`,
-                      opacity: 0.3 + (i / 15) * 0.7,
+                      opacity: 0.35 + (i / 17) * 0.65,
                     }}
                   />
                 );
               })}
             </div>
 
-            <div className="text-right text-slateText truncate">
-              SHA-256: <span className="text-slate-400">8f4e3c13a0219bd948f2...</span>
+            <div className="text-right text-slate-400 truncate">
+              SHA-256: <span className="text-cyan-300">8f4e3c13a0219bd948f2...</span>
             </div>
           </div>
 
@@ -312,11 +337,11 @@ function drawComparatorSkeleton(
 
   // Bones
   ctx.strokeStyle = boneColor;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2.5;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.shadowColor = glowColor;
-  ctx.shadowBlur = 8;
+  ctx.shadowBlur = 12;
 
   bones.forEach(([a, b]) => {
     ctx.beginPath();
@@ -327,18 +352,18 @@ function drawComparatorSkeleton(
 
   // Joints
   ctx.fillStyle = jointColor;
-  ctx.shadowBlur = 6;
+  ctx.shadowBlur = 8;
   Object.values(pts).forEach((pt) => {
     ctx.beginPath();
-    ctx.arc(pt.x, pt.y, 3.5, 0, Math.PI * 2);
+    ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
     ctx.fill();
   });
 
   // Active contact hand point
   ctx.fillStyle = boneColor;
-  ctx.shadowBlur = 12;
+  ctx.shadowBlur = 18;
   ctx.beginPath();
-  ctx.arc(pts.hands.x, pts.hands.y, 6, 0, Math.PI * 2);
+  ctx.arc(pts.hands.x, pts.hands.y, 7, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.restore();
