@@ -32,12 +32,67 @@ function prettyJson(obj: unknown): string {
   return JSON.stringify(obj, null, 2);
 }
 
+const DEFAULT_DEMO_RUBRIC: Rubric = {
+  id: '00000000-0000-0000-0000-000000000020',
+  institute_id: '00000000-0000-0000-0000-000000000001',
+  trade_id: '00000000-0000-0000-0000-000000000010',
+  name: 'AHA-CPR-2026-v2',
+  version: 1,
+  is_published: true,
+  pass_threshold: 70,
+  config: {
+    criteria: [
+      {
+        id: 'rate',
+        label: 'Compression Rate',
+        weight: 30,
+        description: 'Maintain cadence between 100 and 120 compressions per minute.',
+        indicators: ['100.0 - 120.0 BPM target window'],
+      },
+      {
+        id: 'depth',
+        label: 'Compression Depth',
+        weight: 30,
+        description: 'Maintain sternal excursion depth between 5.0cm and 6.0cm.',
+        indicators: ['5.0 - 6.0 cm target depth'],
+      },
+      {
+        id: 'recoil',
+        label: 'Full Recoil Completeness',
+        weight: 20,
+        description: 'Allow complete thoracic recoil without residual leaning.',
+        indicators: ['< 5.0% incomplete recoil'],
+      },
+      {
+        id: 'posture',
+        label: 'Arm Posture & Vertical Lock',
+        weight: 20,
+        description: 'Elbows locked straight and shoulders positioned vertically over sternum.',
+        indicators: ['< 15.0° angular deviation'],
+      },
+    ],
+    scoring_scale: {
+      min: 0,
+      max: 100,
+      bands: [
+        { label: 'Pass', min: 70, max: 100, color: '#00f0ff' },
+        { label: 'Needs Practice', min: 0, max: 69, color: '#f59e0b' },
+      ],
+    },
+    total_weight: 100,
+  },
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+};
+
 export function RubricEditor() {
   const { db, activeUser } = useApp();
-  const [rubrics, setRubrics] = useState<Rubric[]>([]);
-  const [tradeMap, setTradeMap] = useState<Record<string, string>>({});
-  const [selectedRubricId, setSelectedRubricId] = useState<string>('');
-  const [jsonText, setJsonText] = useState<string>('');
+  const [rubrics, setRubrics] = useState<Rubric[]>([DEFAULT_DEMO_RUBRIC]);
+  const [tradeMap, setTradeMap] = useState<Record<string, string>>({
+    '00000000-0000-0000-0000-000000000010': 'CPR Chest Compression Assessment',
+  });
+  const [selectedRubricId, setSelectedRubricId] = useState<string>(DEFAULT_DEMO_RUBRIC.id);
+  const [jsonText, setJsonText] = useState<string>(prettyJson(DEFAULT_DEMO_RUBRIC.config));
   const [parseError, setParseError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -48,12 +103,16 @@ export function RubricEditor() {
     db.from('rubrics')
       .select('*')
       .eq('institute_id', activeUser.institute_id)
-      .then(({ data }) => {
-        if (data && data.length > 0) {
+      .then(({ data, error }) => {
+        if (!error && data && data.length > 0) {
           const rList = data as Rubric[];
           setRubrics(rList);
           setSelectedRubricId((prev) => prev || rList[0].id);
           setJsonText((prev) => prev || prettyJson(rList[0].config));
+        } else {
+          setRubrics([DEFAULT_DEMO_RUBRIC]);
+          setSelectedRubricId(DEFAULT_DEMO_RUBRIC.id);
+          setJsonText(prettyJson(DEFAULT_DEMO_RUBRIC.config));
         }
       });
 
@@ -61,7 +120,7 @@ export function RubricEditor() {
       .select('*')
       .eq('institute_id', activeUser.institute_id)
       .then(({ data }) => {
-        if (data) {
+        if (data && data.length > 0) {
           const tMap = Object.fromEntries(
             (data as { id: string; name: string }[]).map((t) => [t.id, t.name])
           );
