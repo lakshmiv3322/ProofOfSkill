@@ -27,6 +27,7 @@ import {
   Hash,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { CertificateReveal3D } from '@/components/3d/certificate-reveal-3d';
 
 // ─────────────────────────────────────────────────────────────
 // PublicVerifyPage — Unauthenticated Official Verification View
@@ -259,14 +260,64 @@ export function PublicVerifyPage({
               </div>
             </div>
 
-            {/* ── Official Printable Certificate Paper ─────────── */}
-            <div
-              id="certificate-print-sheet"
-              className={cn(
-                'relative bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border-4 border-double border-amber-500/40 rounded-2xl p-6 sm:p-12 shadow-2xl overflow-hidden',
-                'print:bg-white print:text-black print:border-8 print:border-double print:border-amber-700 print:shadow-none print:rounded-none print:p-8'
-              )}
+            {/* ── Official Printable Certificate Paper with 3D Reveal & Flip ─── */}
+            <CertificateReveal3D
+              backContent={
+                <div className="flex flex-col justify-between h-full p-2 font-mono">
+                  <div>
+                    <div className="flex items-center justify-between border-b border-amber-500/30 pb-4 mb-6">
+                      <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
+                        <ShieldCheck className="h-5 w-5" />
+                        <span>CRYPTOGRAPHIC LEDGER AUDIT BACKPLATE</span>
+                      </div>
+                      <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-xs">
+                        AUTHENTICATED LEDGER
+                      </Badge>
+                    </div>
+
+                    <div className="grid sm:grid-cols-2 gap-6 text-xs text-slate-300">
+                      <div className="space-y-3">
+                        <div>
+                          <span className="text-slate-500 text-[10px] block">CERTIFICATE ID</span>
+                          <span className="text-white font-semibold">{certData.certificate.id}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 text-[10px] block">CANDIDATE NAME</span>
+                          <span className="text-amber-300 font-semibold">{certData.trainee_name}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 text-[10px] block">ACCREDITED STANDARD</span>
+                          <span className="text-white">AHA-CPR-2026 (Vision DTW Protocol)</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 text-[10px] block">VERIFICATION SHA-256 HASH</span>
+                          <span className="text-cyan-400 break-all">{ledgerHash}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col items-center justify-center p-4 rounded-xl bg-slate-900/80 border border-white/10">
+                        <div className="p-2 bg-white rounded-lg shadow-md mb-3">
+                          <QRCodeSVG value={verificationUrl} size={120} fgColor="#020617" />
+                        </div>
+                        <span className="text-[11px] text-amber-300 font-bold">{certData.certificate.verification_code}</span>
+                        <span className="text-[10px] text-slate-500 mt-1">Scan with mobile device to verify</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-6 border-t border-white/10 text-center text-[10px] text-slate-500">
+                    Multi-tenant Cryptographic Proof · Issued by {certData.institute_name} · Validated by ProofOfSkill Protocol
+                  </div>
+                </div>
+              }
             >
+              <div
+                id="certificate-print-sheet"
+                className={cn(
+                  'relative bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border-4 border-double border-amber-500/40 rounded-2xl p-6 sm:p-12 shadow-2xl overflow-hidden',
+                  'print:bg-white print:text-black print:border-8 print:border-double print:border-amber-700 print:shadow-none print:rounded-none print:p-8'
+                )}
+              >
               {/* Decorative corner ornaments */}
               <div className="absolute top-3 left-3 w-10 h-10 border-t-2 border-l-2 border-amber-400/60 print:border-amber-700" />
               <div className="absolute top-3 right-3 w-10 h-10 border-t-2 border-r-2 border-amber-400/60 print:border-amber-700" />
@@ -427,6 +478,7 @@ export function PublicVerifyPage({
                 </p>
               </div>
             </div>
+            </CertificateReveal3D>
 
             {/* ── Metadata & Verification Details Drawer (Screen only) ─ */}
             <div className="grid sm:grid-cols-2 gap-4 print:hidden">

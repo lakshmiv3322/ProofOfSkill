@@ -10,6 +10,7 @@ import { Pricing } from '@/components/landing/pricing';
 import { CTA } from '@/components/landing/cta';
 import { Footer } from '@/components/landing/footer';
 import { AuthModal } from '@/components/landing/auth-modal';
+import { LandingBackgroundParallax } from '@/components/3d/landing-background-parallax';
 import { Loader2 } from 'lucide-react';
 
 const Dashboard = lazy(() =>
@@ -119,12 +120,13 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative overflow-hidden">
+      <LandingBackgroundParallax />
       <Navbar
         onAuthClick={openAuth}
         onVerifyClick={() => openVerify('POS-CPR-2026-042AH')}
       />
-      <main>
+      <main className="relative z-10">
         <Hero onAuthClick={openAuth} />
         <Features />
         <HowItWorks />

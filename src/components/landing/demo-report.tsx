@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import {
   CheckCircle2,
-  Award,
   Sliders,
   FileCheck2,
 } from 'lucide-react';
+import { ScoreReveal3D } from '@/components/3d/score-reveal-3d';
 
 interface CalibrationCriterion {
   id: string;
@@ -202,9 +202,7 @@ export function DemoReport({ onVerifyClick }: DemoReportProps) {
             
             {/* Seal Badge Left */}
             <div className="sm:col-span-4 flex items-center gap-4">
-              <div className="h-16 w-16 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/20 to-orange-500/10 flex items-center justify-center text-amber-400 shrink-0 shadow-glow-amber">
-                <Award className="h-8 w-8" />
-              </div>
+              <ScoreReveal3D score={94.5} size="md" />
               <div>
                 <span className="text-[10px] font-mono text-amber-400 font-bold uppercase tracking-wider block">Official Verdict Seal</span>
                 <span className="text-2xl font-headline font-bold text-white">Certified Competent</span>

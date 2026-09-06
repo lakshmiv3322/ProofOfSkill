@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
+import { useCanRender3D } from '@/lib/motion-utils';
 import {
   ShieldCheck,
   Activity,
@@ -9,7 +10,10 @@ import {
   Sliders,
   Layers,
   Cpu,
+  Box,
 } from 'lucide-react';
+
+const CprSkeletonScene = lazy(() => import('@/components/3d/cpr-skeleton-scene'));
 
 interface HeroProps {
   onAuthClick: (tab: 'signin' | 'signup') => void;
@@ -21,6 +25,10 @@ export function Hero({ onAuthClick }: HeroProps) {
   const [traineeDepth, setTraineeDepth] = useState(5.4);
   const [armAngle, setArmAngle] = useState(178.2);
   const [dtwAlignment, setDtwAlignment] = useState(98.4);
+  const [view3DMode, setView3DMode] = useState(true);
+
+  const { canRender: canRender3D } = useCanRender3D();
+  const show3D = canRender3D && view3DMode;
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -184,6 +192,17 @@ export function Hero({ onAuthClick }: HeroProps) {
             </div>
 
             <div className="flex items-center gap-4">
+              {canRender3D && (
+                <button
+                  type="button"
+                  onClick={() => setView3DMode(!view3DMode)}
+                  aria-label="Toggle between 3D Kinematic Rig and 2D Comparator"
+                  className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 text-[11px] font-mono transition-all"
+                >
+                  <Box className="h-3 w-3 text-cyan-400" />
+                  <span>{view3DMode ? '3D RIG ACTIVE' : '2D COMPARATOR'}</span>
+                </button>
+              )}
               <span className="text-cyan-300 font-bold drop-shadow-[0_0_8px_rgba(0,240,255,0.4)]">
                 DTW Alignment: {dtwAlignment}%
               </span>
@@ -194,13 +213,44 @@ export function Hero({ onAuthClick }: HeroProps) {
 
           {/* Optical Canvas Viewport */}
           <div className="relative aspect-[16/9] sm:aspect-[21/9] w-full bg-[#05070e] flex items-center justify-center overflow-hidden">
+            {/* 2D Canvas comparator (baseline & smooth fallback) */}
             <canvas
               ref={canvasRef}
-              className="absolute inset-0 w-full h-full pointer-events-none"
+              className={`absolute inset-0 w-full h-full pointer-events-none transition-opacity duration-500 ${
+                show3D ? 'opacity-0' : 'opacity-100'
+              }`}
             />
 
+            {/* Real 3D React Three Fiber Kinematic Rig */}
+            {show3D && (
+              <div className="absolute inset-0 w-full h-full z-0">
+                <Suspense
+                  fallback={
+                    <div className="w-full h-full flex items-center justify-center text-xs font-mono text-cyan-400/70">
+                      Initializing 3D Kinematic Rig...
+                    </div>
+                  }
+                >
+                  <CprSkeletonScene
+                    isPlaying={isPlaying}
+                    traineeBpm={traineeBpm}
+                    traineeDepth={traineeDepth}
+                  />
+                </Suspense>
+              </div>
+            )}
+
+            {/* Orbit Hint in 3D mode */}
+            {show3D && (
+              <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 pointer-events-none text-center hidden md:block">
+                <span className="inline-block px-3 py-1 rounded-full bg-slate-950/80 border border-white/10 text-[10px] font-mono text-slate-400 backdrop-blur-md">
+                  Drag to orbit · Clamped 3D perspective
+                </span>
+              </div>
+            )}
+
             {/* Left Telemetry Card (Trainee Live Stream) */}
-            <div className="absolute bottom-5 left-5 p-4 rounded-xl glass-panel text-left font-mono text-xs space-y-1.5 z-10 shadow-lg border-cyan-500/20">
+            <div className="absolute bottom-5 left-5 p-4 rounded-xl glass-panel text-left font-mono text-xs space-y-1.5 z-20 shadow-lg border-cyan-500/20 pointer-events-auto">
               <div className="text-cyan-400 font-bold mb-1 flex items-center gap-1.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping" />
                 TRAINEE TELEMETRY
@@ -211,7 +261,7 @@ export function Hero({ onAuthClick }: HeroProps) {
             </div>
 
             {/* Right Telemetry Card (Reference Exemplar) */}
-            <div className="absolute bottom-5 right-5 p-4 rounded-xl glass-panel text-right font-mono text-xs space-y-1.5 z-10 shadow-lg border-purple-500/20">
+            <div className="absolute bottom-5 right-5 p-4 rounded-xl glass-panel text-right font-mono text-xs space-y-1.5 z-20 shadow-lg border-purple-500/20 pointer-events-auto">
               <div className="text-purple-400 font-bold mb-1 flex items-center justify-end gap-1.5">
                 EXEMPLAR STANDARD
                 <Layers className="h-3 w-3 text-purple-400" />
@@ -222,11 +272,11 @@ export function Hero({ onAuthClick }: HeroProps) {
             </div>
 
             {/* Center Play/Pause Toggle */}
-            <div className="absolute top-5 left-1/2 -translate-x-1/2 z-10">
+            <div className="absolute top-5 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
               <button
                 onClick={() => setIsPlaying(!isPlaying)}
                 aria-label={isPlaying ? 'Pause Kinematics Animation' : 'Resume Kinematics Animation'}
-                className="px-4 py-1.5 rounded-full bg-white/[0.06] border border-white/15 text-slate-200 hover:text-white text-xs font-mono transition-all flex items-center gap-2 backdrop-blur-md hover:bg-white/[0.12] hover:border-cyan-400/40"
+                className="px-4 py-1.5 rounded-full bg-white/[0.06] border border-white/15 text-slate-200 hover:text-white text-xs font-mono transition-all flex items-center gap-2 backdrop-blur-md hover:bg-white/[0.12] hover:border-cyan-400/40 shadow-sm"
               >
                 {isPlaying ? <Pause className="h-3 w-3 text-cyan-400" /> : <Play className="h-3 w-3 text-cyan-400" />}
                 <span>{isPlaying ? 'Pause Kinematics' : 'Resume Kinematics'}</span>

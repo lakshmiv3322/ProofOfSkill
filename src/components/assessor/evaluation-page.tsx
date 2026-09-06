@@ -20,6 +20,7 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ScoreReveal3D } from '@/components/3d/score-reveal-3d';
 
 // ─────────────────────────────────────────────────────────────
 // EvaluationPage — side-by-side trainee metadata vs AI scores
@@ -85,12 +86,6 @@ function scoreColor(score: number) {
   if (score >= 85) return 'text-emerald-500';
   if (score >= 70) return 'text-amber-500';
   return 'text-red-500';
-}
-
-function scoreBg(score: number) {
-  if (score >= 85) return 'bg-emerald-500';
-  if (score >= 70) return 'bg-amber-500';
-  return 'bg-red-500';
 }
 
 interface EvaluationPageProps {
@@ -274,14 +269,7 @@ export function EvaluationPage({ submissionId = 'sub-010', onBack }: EvaluationP
             </CardHeader>
             <CardContent>
               <div className="mb-4 flex items-center gap-4">
-                <div
-                  className={cn(
-                    'flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-xl font-extrabold text-white',
-                    scoreBg(AI_OVERALL)
-                  )}
-                >
-                  {AI_OVERALL.toFixed(0)}
-                </div>
+                <ScoreReveal3D score={AI_OVERALL} size="md" />
                 <div>
                   <p className="text-2xl font-extrabold">{AI_OVERALL.toFixed(1)}%</p>
                   <p className="text-xs text-muted-foreground">Weighted overall · Confidence 91%</p>

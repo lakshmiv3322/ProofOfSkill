@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { QRCodeSVG } from '@/components/common/qr-code';
+import { CertificateReveal3D } from '@/components/3d/certificate-reveal-3d';
 
 // ─────────────────────────────────────────────────────────────
 // MyProgress — Trainee personal timeline + analytics from DB
@@ -452,50 +453,51 @@ export function MyProgress({ onViewCertificate }: MyProgressProps) {
             : `https://proofofskill.com/verify/${sub.certCode}`;
 
           return (
-            <div
-              key={sub.id}
-              className="flex flex-col justify-between rounded-xl border border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-slate-900/40 p-4 space-y-4 hover:border-amber-500/60 transition-all shadow-sm"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0">
-                    <ShieldCheck className="h-6 w-6 text-amber-500" />
+            <CertificateReveal3D key={sub.id} enableFlip={false}>
+              <div
+                className="flex flex-col justify-between rounded-xl border border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-slate-900/40 p-4 space-y-4 hover:border-amber-500/60 transition-all shadow-sm h-full"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0">
+                      <ShieldCheck className="h-6 w-6 text-amber-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-foreground leading-snug">{sub.trade}</p>
+                      <p className="text-xs text-emerald-500 font-semibold mt-0.5 font-mono">Certified Score: {sub.score}%</p>
+                    </div>
                   </div>
+
+                  {/* QR Code thumbnail */}
+                  <div className="p-1 bg-white rounded-md shrink-0 shadow-sm border border-amber-400">
+                    <QRCodeSVG value={verifyUrl} size={42} fgColor="#0f172a" />
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-border/40 flex items-center justify-between text-xs">
                   <div>
-                    <p className="text-sm font-bold text-foreground leading-snug">{sub.trade}</p>
-                    <p className="text-xs text-emerald-500 font-semibold mt-0.5 font-mono">Certified Score: {sub.score}%</p>
+                    <span className="text-[10px] text-muted-foreground block font-mono">VERIFICATION CODE</span>
+                    <span className="font-mono font-bold text-amber-600 dark:text-amber-400">{sub.certCode}</span>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        if (onViewCertificate && sub.certCode) {
+                          onViewCertificate(sub.certCode);
+                        } else if (sub.certCode) {
+                          window.open(`/verify/${sub.certCode}`, '_blank');
+                        }
+                      }}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-medium text-xs transition-colors border border-amber-500/30"
+                    >
+                      <span>Verify & Print</span>
+                      <ExternalLink className="h-3 w-3" />
+                    </button>
                   </div>
                 </div>
-
-                {/* QR Code thumbnail */}
-                <div className="p-1 bg-white rounded-md shrink-0 shadow-sm border border-amber-400">
-                  <QRCodeSVG value={verifyUrl} size={42} fgColor="#0f172a" />
-                </div>
               </div>
-
-              <div className="pt-2 border-t border-border/40 flex items-center justify-between text-xs">
-                <div>
-                  <span className="text-[10px] text-muted-foreground block font-mono">VERIFICATION CODE</span>
-                  <span className="font-mono font-bold text-amber-600 dark:text-amber-400">{sub.certCode}</span>
-                </div>
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      if (onViewCertificate && sub.certCode) {
-                        onViewCertificate(sub.certCode);
-                      } else if (sub.certCode) {
-                        window.open(`/verify/${sub.certCode}`, '_blank');
-                      }
-                    }}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-medium text-xs transition-colors border border-amber-500/30"
-                  >
-                    <span>Verify & Print</span>
-                    <ExternalLink className="h-3 w-3" />
-                  </button>
-                </div>
-              </div>
-            </div>
+            </CertificateReveal3D>
           );
         })}
         {certs.length === 0 && !isLoading && (
