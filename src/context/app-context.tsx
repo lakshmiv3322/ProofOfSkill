@@ -16,6 +16,7 @@ import {
   createContext,
   useContext,
   useState,
+  useEffect,
   useCallback,
   type ReactNode,
 } from 'react';
@@ -116,6 +117,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activeUser, setActiveUser] = useState<User>(
     authUser ?? DEMO_PERSONA_USERS.trainee
   );
+
+  useEffect(() => {
+    if (authUser) {
+      setActiveUser(authUser);
+      setActiveRole(authUser.role);
+    }
+  }, [authUser]);
 
   // ── Role switching (demo only) ────────────────────────────────
 

@@ -60,21 +60,78 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // ── Fetch the app-level user row for the auth user ──────────
+  // ── Fetch or construct the app-level user row ──────────────
 
-  const fetchUser = useCallback(async (authUserId: string): Promise<User | null> => {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('auth_id', authUserId)
-      .single();
+  const fetchUser = useCallback(
+    async (
+      sessionUser: { id: string; email?: string; created_at?: string; user_metadata?: Record<string, unknown> } | string
+    ): Promise<User | null> => {
+      const authUserId = typeof sessionUser === 'string' ? sessionUser : sessionUser.id;
+      const rawUser = typeof sessionUser === 'object' ? sessionUser : null;
+      const meta = (rawUser?.user_metadata as Record<string, unknown> | undefined) || {};
+      const userEmail = rawUser?.email || '';
 
-    if (error || !data) {
-      console.error('[auth] Failed to fetch user profile:', error?.message);
-      return null;
-    }
-    return data as User;
-  }, []);
+      const fallbackUser: User = {
+        id: authUserId,
+        auth_id: authUserId,
+        institute_id: (meta.institute_id as string) || '00000000-0000-0000-0000-000000000001',
+        email: userEmail,
+        full_name: (meta.full_name as string) || userEmail.split('@')[0] || 'Trainee User',
+        role: (meta.role as UserRole) || 'trainee',
+        avatar_url: null,
+        is_active: true,
+        last_login_at: new Date().toISOString(),
+        metadata: meta,
+        created_at: rawUser?.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('auth_id', authUserId)
+          .maybeSingle();
+
+        if (!error && data) {
+          return data as User;
+        }
+
+        if (error) {
+          console.warn('[auth] Failed to fetch user profile from DB (using session fallback):', error.message);
+        }
+
+        // Self-heal: attempt to insert the user into public.users if the DB trigger was missing
+        if (userEmail) {
+          void (async () => {
+            try {
+              const { error: insertErr } = await supabase.from('users').insert({
+                auth_id: authUserId,
+                institute_id: fallbackUser.institute_id,
+                email: fallbackUser.email,
+                full_name: fallbackUser.full_name,
+                role: fallbackUser.role,
+              });
+              if (insertErr) {
+                console.warn('[auth] Self-healing user profile insert notice:', insertErr.message);
+              } else {
+                console.log('[auth] Successfully self-healed user profile in public.users');
+              }
+            } catch {
+              // Ignore background insert error
+            }
+          })();
+        }
+
+        return fallbackUser;
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn('[auth] Exception fetching profile (using fallback):', msg);
+        return fallbackUser;
+      }
+    },
+    []
+  );
 
   // ── Resolve session on mount + subscribe to auth changes ────
 
@@ -82,13 +139,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let mounted = true;
 
     // 1. Restore any existing session from localStorage
-    // Wrapped in try/catch so a missing Supabase config (no .env.local) doesn't crash the app.
     supabase.auth.getSession()
       .then(async ({ data: { session: existingSession } }) => {
         if (!mounted) return;
         setSession(existingSession);
         if (existingSession?.user) {
-          const appUser = await fetchUser(existingSession.user.id);
+          const appUser = await fetchUser(existingSession.user);
           if (mounted) setUser(appUser);
         }
         setIsLoading(false);
@@ -107,7 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (!mounted) return;
           setSession(newSession);
           if (newSession?.user) {
-            const appUser = await fetchUser(newSession.user.id);
+            const appUser = await fetchUser(newSession.user);
             if (mounted) setUser(appUser);
           } else {
             setUser(null);
@@ -126,39 +182,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [fetchUser]);
 
-  // ── Auth actions ──────────────────────────────────────────────
+  // ── Auth actions ───────────────────────────────────────────
 
   const signIn = useCallback(
     async (email: string, password: string): Promise<{ error: string | null }> => {
       try {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (!error) return { error: null };
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) {
+          if (error.message.includes('Email not confirmed')) {
+            return { error: 'Email address not confirmed. Please check your inbox for the confirmation link.' };
+          }
 
-        if (error.message.includes('Email not confirmed')) {
-          return { error: 'Email address not confirmed. Please check your inbox for the confirmation link.' };
+          if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+            // Fallback demo session when Supabase is unconfigured or unreachable
+            const demoUser: User = {
+              id: '00000000-0000-0000-0000-000000000002',
+              auth_id: '00000000-0000-0000-0000-000000000002',
+              institute_id: '00000000-0000-0000-0000-000000000001',
+              email: email || 'sarah.chen@apex.edu',
+              full_name: 'Sarah Chen',
+              role: 'trainee',
+              avatar_url: null,
+              is_active: true,
+              last_login_at: new Date().toISOString(),
+              metadata: {},
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            };
+            setUser(demoUser);
+            return { error: null };
+          }
+
+          return { error: error.message };
         }
 
-        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-          // Fallback demo session when Supabase is unconfigured or unreachable
-          const demoUser: User = {
-            id: '00000000-0000-0000-0000-000000000002',
-            auth_id: '00000000-0000-0000-0000-000000000002',
-            institute_id: '00000000-0000-0000-0000-000000000001',
-            email: email || 'sarah.chen@apex.edu',
-            full_name: 'Sarah Chen',
-            role: 'trainee',
-            avatar_url: null,
-            is_active: true,
-            last_login_at: new Date().toISOString(),
-            metadata: {},
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          };
-          setUser(demoUser);
-          return { error: null };
+        // If sign-in succeeds, set session and user immediately
+        if (data.session) {
+          setSession(data.session);
+          if (data.session.user) {
+            const appUser = await fetchUser(data.session.user);
+            setUser(appUser);
+          }
         }
 
-        return { error: error.message };
+        return { error: null };
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
         if (message.includes('Failed to fetch') || message.includes('NetworkError')) {
@@ -181,7 +248,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: message };
       }
     },
-    []
+    [fetchUser]
   );
 
   const signUp = useCallback(
