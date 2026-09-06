@@ -7,7 +7,6 @@ import {
   Pause,
   Zap,
   Sliders,
-  Sparkles,
   Layers,
   Cpu,
 } from 'lucide-react';

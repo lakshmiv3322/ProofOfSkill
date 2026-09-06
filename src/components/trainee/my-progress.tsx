@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,6 +6,7 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useApp } from '@/context/app-context';
+import { supabase } from '@/lib/supabase/client';
 import {
   AreaChart,
   Area,
@@ -106,17 +107,17 @@ const DEMO_SUBMISSION_RECORDS: SubmissionRecord[] = [
 ];
 
 export function MyProgress({ onViewCertificate }: MyProgressProps) {
-  const { db, activeUser } = useApp();
+  const { activeUser } = useApp();
   const [submissions, setSubmissions] = useState<SubmissionRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
       // Query trainee's submissions
-      const { data: subData, error: subErr } = await (db as any)
+      const { data: subData, error: subErr } = await supabase
         .from('submissions')
         .select('*')
         .eq('institute_id', activeUser.institute_id)
@@ -131,17 +132,17 @@ export function MyProgress({ onViewCertificate }: MyProgressProps) {
         return;
       }
 
-      const tradeIds = Array.from(new Set(subData.map((s: any) => s.trade_id)));
-      const subIds = subData.map((s: any) => s.id);
+      const tradeIds = Array.from(new Set((subData as any[]).map((s) => s.trade_id)));
+      const subIds = (subData as any[]).map((s) => s.id);
 
       const [tradesRes, scoresRes, certsRes] = await Promise.all([
-        (db as any).from('trades').select('id, name').in('id', tradeIds),
-        (db as any).from('scores').select('submission_id, score, weight').in('submission_id', subIds),
-        (db as any).from('certificates').select('submission_id, verification_code, status').in('submission_id', subIds),
+        supabase.from('trades').select('id, name').in('id', tradeIds),
+        supabase.from('scores').select('submission_id, score, weight').in('submission_id', subIds),
+        supabase.from('certificates').select('submission_id, verification_code, status').in('submission_id', subIds),
       ]);
 
-      const tradeMap = new Map((tradesRes.data || []).map((t: any) => [t.id, t.name]));
-      const certMap = new Map((certsRes.data || []).map((c: any) => [c.submission_id, c.verification_code]));
+      const tradeMap = new Map(((tradesRes.data as any[]) || []).map((t) => [t.id, t.name]));
+      const certMap = new Map(((certsRes.data as any[]) || []).map((c) => [c.submission_id, c.verification_code]));
 
       // Group scores
       const scoreMap = new Map<string, number>();
@@ -160,7 +161,7 @@ export function MyProgress({ onViewCertificate }: MyProgressProps) {
         }
       }
 
-      const records: SubmissionRecord[] = subData.map((s: any) => {
+      const records: SubmissionRecord[] = (subData as any[]).map((s) => {
         const tradeName = tradeMap.get(s.trade_id) || 'Practical Skill';
         const certCode = certMap.get(s.id) || null;
         const score = scoreMap.get(s.id) ?? (s.status === 'certified' || s.status === 'scored' ? 85 : null);
@@ -190,9 +191,10 @@ export function MyProgress({ onViewCertificate }: MyProgressProps) {
       });
 
       setSubmissions(records);
-    } catch (err: any) {
-      console.error('[MyProgress] error loading progress data:', err);
-      if (err?.message?.includes('Failed to fetch') || err?.message?.includes('NetworkError')) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[MyProgress] error loading progress data:', msg);
+      if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
         setSubmissions(DEMO_SUBMISSION_RECORDS);
         setError(null);
       } else {
@@ -201,11 +203,11 @@ export function MyProgress({ onViewCertificate }: MyProgressProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [activeUser.id, activeUser.institute_id]);
 
   useEffect(() => {
     fetchData();
-  }, [activeUser.id]);
+  }, [fetchData]);
 
   const stats = useMemo(() => {
     const scored = submissions.filter((s) => s.score !== null);

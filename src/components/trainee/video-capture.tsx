@@ -8,6 +8,7 @@ import { poseDetector } from '@/lib/pose/pose-detector';
 import { evaluateSubmissionServer } from '@/lib/scoring/rubric-engine';
 import { generateFullFeedback } from '@/lib/llm/feedback-generator';
 import { useApp } from '@/context/app-context';
+import { supabase } from '@/lib/supabase/client';
 import { logAudit } from '@/lib/supabase/audit';
 import {
   Camera,
@@ -81,7 +82,7 @@ interface ScoringResults {
 }
 
 export function VideoCapture({ onBack, onComplete }: VideoCaptureProps) {
-  const { db, activeUser } = useApp();
+  const { activeUser } = useApp();
 
   const [state, setState] = useState<CaptureState>('preflight');
   const [mode,  setMode]  = useState<CaptureMode>('record');
@@ -315,7 +316,7 @@ export function VideoCapture({ onBack, onComplete }: VideoCaptureProps) {
     setProcessingProgress(80);
 
     // 1. Fetch rubric scoped to active user's institute_id
-    const { data: rubricsData, error: rubricError } = await (db as any)
+    const { data: rubricsData, error: rubricError } = await supabase
       .from('rubrics')
       .select('*')
       .eq('institute_id', activeUser.institute_id)
@@ -357,7 +358,7 @@ export function VideoCapture({ onBack, onComplete }: VideoCaptureProps) {
         trainee_id: activeUser.id,
         trade_id: rubricRow.trade_id,
         rubric_id: rubricRow.id,
-        status: 'ai_processed',
+        status: 'ai_processed' as const,
         video_url: 'blob:live-capture',
         thumbnail_url: '',
         duration_seconds: Math.max(1, recordingTime || 10),
@@ -366,7 +367,7 @@ export function VideoCapture({ onBack, onComplete }: VideoCaptureProps) {
         updated_at: new Date().toISOString(),
       };
 
-      const { error: subErr } = await (db as any).from('submissions').insert(submissionRow);
+      const { error: subErr } = await supabase.from('submissions').insert(submissionRow);
       if (subErr) throw new Error(`Submission record creation failed: ${subErr.message}`);
 
       // B. Insert Scores Rows (one per criterion)
@@ -378,12 +379,12 @@ export function VideoCapture({ onBack, onComplete }: VideoCaptureProps) {
         score: d.score,
         max_score: 100,
         weight: d.weight,
-        source: 'ai', // Valid enum value: 'ai' | 'human'
+        source: 'ai' as const, // Valid enum value: 'ai' | 'human'
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }));
 
-      const { error: scoreErr } = await (db as any).from('scores').insert(scoreRows);
+      const { error: scoreErr } = await supabase.from('scores').insert(scoreRows);
       if (scoreErr) throw new Error(`Score records creation failed: ${scoreErr.message}`);
 
       // C. Insert Feedback Row
@@ -399,7 +400,7 @@ export function VideoCapture({ onBack, onComplete }: VideoCaptureProps) {
         updated_at: new Date().toISOString(),
       };
 
-      const { error: fbErr } = await (db as any).from('feedback').insert(feedbackRow);
+      const { error: fbErr } = await supabase.from('feedback').insert(feedbackRow);
       if (fbErr) throw new Error(`Feedback record creation failed: ${fbErr.message}`);
 
       // D. Store Extracted Landmark Sequence (pose_landmark_sets)
@@ -415,7 +416,7 @@ export function VideoCapture({ onBack, onComplete }: VideoCaptureProps) {
         updated_at: new Date().toISOString(),
       };
 
-      const { error: plsErr } = await (db as any).from('pose_landmark_sets').insert(landmarkSet);
+      const { error: plsErr } = await supabase.from('pose_landmark_sets').insert(landmarkSet);
       if (plsErr) console.warn('[executeScoringEngine] store landmark set notice:', plsErr.message);
 
       // Audit Log entry
@@ -444,8 +445,9 @@ export function VideoCapture({ onBack, onComplete }: VideoCaptureProps) {
 
       setProcessingProgress(100);
       setState('results');
-    } catch (err: any) {
-      console.error('[executeScoringEngine] Database persistence error:', err);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[executeScoringEngine] Database persistence error:', msg);
       const errMsg = "We couldn't save your submission — check your connection and retry";
       setPipelineError(errMsg);
       setProcessingMsg(`Error: ${errMsg}`);

@@ -44,7 +44,9 @@ interface AuthContextValue {
     full_name: string,
     institute_id: string,
     role?: UserRole
-  ) => Promise<{ error: string | null }>;
+  ) => Promise<{ error: string | null; needsConfirmation?: boolean }>;
+  /** Resend confirmation email for pending signups. */
+  resendConfirmationEmail: (email: string) => Promise<{ error: string | null }>;
   /** Sign the current user out. */
   signOut: () => Promise<void>;
 }
@@ -92,7 +94,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
       })
       .catch((err) => {
-        console.warn('[auth] getSession failed (offline/demo mode):', err?.message);
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn('[auth] getSession failed (offline/demo mode):', msg);
         if (mounted) setIsLoading(false);
       });
 
@@ -131,6 +134,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (!error) return { error: null };
 
+        if (error.message.includes('Email not confirmed')) {
+          return { error: 'Email address not confirmed. Please check your inbox for the confirmation link.' };
+        }
+
         if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
           // Fallback demo session when Supabase is unconfigured or unreachable
           const demoUser: User = {
@@ -152,8 +159,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         return { error: error.message };
-      } catch (err: any) {
-        if (err?.message?.includes('Failed to fetch') || err?.message?.includes('NetworkError')) {
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
+        if (message.includes('Failed to fetch') || message.includes('NetworkError')) {
           setUser({
             id: '00000000-0000-0000-0000-000000000002',
             auth_id: '00000000-0000-0000-0000-000000000002',
@@ -170,7 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
           return { error: null };
         }
-        return { error: err?.message || 'An unexpected error occurred.' };
+        return { error: message };
       }
     },
     []
@@ -183,9 +191,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       full_name: string,
       institute_id: string,
       role: UserRole = 'trainee'
-    ): Promise<{ error: string | null }> => {
+    ): Promise<{ error: string | null; needsConfirmation?: boolean }> => {
       try {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -196,31 +204,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             },
           },
         });
-        if (!error) return { error: null };
 
-        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-          // Fallback demo user creation when Supabase is unconfigured or unreachable
-          const newUser: User = {
-            id: `user-${crypto.randomUUID()}`,
-            auth_id: `auth-${crypto.randomUUID()}`,
-            institute_id: institute_id || '00000000-0000-0000-0000-000000000001',
-            email,
-            full_name: full_name || 'Trainee User',
-            role,
-            avatar_url: null,
-            is_active: true,
-            last_login_at: new Date().toISOString(),
-            metadata: {},
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          };
-          setUser(newUser);
-          return { error: null };
+        if (error) {
+          if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+            // Fallback demo user creation when Supabase is unconfigured or unreachable
+            const newUser: User = {
+              id: `user-${crypto.randomUUID()}`,
+              auth_id: `auth-${crypto.randomUUID()}`,
+              institute_id: institute_id || '00000000-0000-0000-0000-000000000001',
+              email,
+              full_name: full_name || 'Trainee User',
+              role,
+              avatar_url: null,
+              is_active: true,
+              last_login_at: new Date().toISOString(),
+              metadata: {},
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            };
+            setUser(newUser);
+            return { error: null, needsConfirmation: false };
+          }
+          return { error: error.message };
         }
 
-        return { error: error.message };
-      } catch (err: any) {
-        if (err?.message?.includes('Failed to fetch') || err?.message?.includes('NetworkError')) {
+        if (!data.session) {
+          return { error: null, needsConfirmation: true };
+        }
+
+        return { error: null, needsConfirmation: false };
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
+        if (message.includes('Failed to fetch') || message.includes('NetworkError')) {
           setUser({
             id: `user-${crypto.randomUUID()}`,
             auth_id: `auth-${crypto.randomUUID()}`,
@@ -235,9 +250,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           });
-          return { error: null };
+          return { error: null, needsConfirmation: false };
         }
-        return { error: err?.message || 'An unexpected error occurred.' };
+        return { error: message };
+      }
+    },
+    []
+  );
+
+  const resendConfirmationEmail = useCallback(
+    async (email: string): Promise<{ error: string | null }> => {
+      try {
+        const { error } = await supabase.auth.resend({
+          type: 'signup',
+          email,
+        });
+        if (error) return { error: error.message };
+        return { error: null };
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to resend confirmation email.';
+        return { error: message };
       }
     },
     []
@@ -258,6 +290,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: user !== null,
         signIn,
         signUp,
+        resendConfirmationEmail,
         signOut,
       }}
     >

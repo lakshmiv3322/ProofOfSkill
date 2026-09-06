@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { ShieldCheck, Zap, Sparkles, Video } from 'lucide-react';
+import { ShieldCheck, Sparkles, Video } from 'lucide-react';
 
 interface CTAProps {
   onAuthClick: (tab: 'signin' | 'signup') => void;

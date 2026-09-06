@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useApp } from '@/context/app-context';
+import { supabase } from '@/lib/supabase/client';
 import type { SubmissionStatus } from '@/types/database';
 import {
   Brain,
@@ -120,17 +121,17 @@ const DEMO_QUEUE_ITEMS: QueueItem[] = [
 ];
 
 export function ReviewQueue({ onReview }: ReviewQueueProps) {
-  const { db, activeUser } = useApp();
+  const { activeUser } = useApp();
   const [items, setItems] = useState<QueueItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchQueue = async () => {
+  const fetchQueue = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
       // Query real submissions in current institute
-      const { data: submissionsData, error: subErr } = await (db as any)
+      const { data: submissionsData, error: subErr } = await supabase
         .from('submissions')
         .select('*')
         .eq('institute_id', activeUser.institute_id)
@@ -146,18 +147,18 @@ export function ReviewQueue({ onReview }: ReviewQueueProps) {
       }
 
       // Fetch related users & trades & scores
-      const traineeIds = Array.from(new Set(submissionsData.map((s: any) => s.trainee_id)));
-      const tradeIds = Array.from(new Set(submissionsData.map((s: any) => s.trade_id)));
-      const subIds = submissionsData.map((s: any) => s.id);
+      const traineeIds = Array.from(new Set((submissionsData as any[]).map((s) => s.trainee_id)));
+      const tradeIds = Array.from(new Set((submissionsData as any[]).map((s) => s.trade_id)));
+      const subIds = (submissionsData as any[]).map((s) => s.id);
 
       const [usersRes, tradesRes, scoresRes] = await Promise.all([
-        (db as any).from('users').select('id, full_name').in('id', traineeIds),
-        (db as any).from('trades').select('id, name').in('id', tradeIds),
-        (db as any).from('scores').select('submission_id, score, weight').in('submission_id', subIds),
+        supabase.from('users').select('id, full_name').in('id', traineeIds),
+        supabase.from('trades').select('id, name').in('id', tradeIds),
+        supabase.from('scores').select('submission_id, score, weight').in('submission_id', subIds),
       ]);
 
-      const userMap = new Map((usersRes.data || []).map((u: any) => [u.id, u.full_name]));
-      const tradeMap = new Map((tradesRes.data || []).map((t: any) => [t.id, t.name]));
+      const userMap = new Map(((usersRes.data as any[]) || []).map((u) => [u.id, u.full_name]));
+      const tradeMap = new Map(((tradesRes.data as any[]) || []).map((t) => [t.id, t.name]));
 
       // Group scores by submission_id
       const scoreMap = new Map<string, number>();
@@ -177,7 +178,7 @@ export function ReviewQueue({ onReview }: ReviewQueueProps) {
       }
 
       // Map to QueueItem shape
-      const formattedItems: QueueItem[] = submissionsData.map((s: any, idx: number) => {
+      const formattedItems: QueueItem[] = (submissionsData as any[]).map((s, idx: number) => {
         const traineeName = userMap.get(s.trainee_id) || 'Trainee';
         const tradeName = tradeMap.get(s.trade_id) || 'Practical Skill';
         const computedScore = scoreMap.get(s.id) ?? 80;
@@ -197,9 +198,10 @@ export function ReviewQueue({ onReview }: ReviewQueueProps) {
       });
 
       setItems(formattedItems);
-    } catch (err: any) {
-      console.error('[ReviewQueue] Error fetching queue:', err);
-      if (err?.message?.includes('Failed to fetch') || err?.message?.includes('NetworkError')) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[ReviewQueue] Error fetching queue:', msg);
+      if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
         setItems(DEMO_QUEUE_ITEMS);
         setError(null);
       } else {
@@ -208,11 +210,11 @@ export function ReviewQueue({ onReview }: ReviewQueueProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [activeUser.institute_id]);
 
   useEffect(() => {
     fetchQueue();
-  }, [activeUser.institute_id]);
+  }, [fetchQueue]);
 
   const pendingCount = items.filter((q) => q.status !== 'under_review').length;
   const urgentCount = items.filter((q) => q.urgent).length;

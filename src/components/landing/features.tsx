@@ -8,7 +8,7 @@ import {
   Eye,
   Award,
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+
 
 const features = [
   {

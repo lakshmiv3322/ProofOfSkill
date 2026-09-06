@@ -4,8 +4,6 @@ import {
   Award,
   Sliders,
   FileCheck2,
-  Lock,
-  ChevronDown,
 } from 'lucide-react';
 
 interface CalibrationCriterion {
